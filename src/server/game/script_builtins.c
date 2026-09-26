@@ -2980,6 +2980,59 @@ void script_func_radiusdamage(void)
     level.radiusDamageIgnorePlayersActive = 0;
 }
 
+void script_func_strtok(void) // from cod2rev
+{
+    int32_t j;
+    char c;
+    int32_t dest;
+    int32_t i;
+    int32_t len;
+    const char* tok;
+    const char* delim;
+    char tempString[1024];
+
+    delim = Scr_GetString(0);
+    tok = Scr_GetString(1u);
+    len = strlen(tok);
+    dest = 0;
+
+    Scr_MakeArray();
+
+    for (i = 0;; ++i) {
+        c = delim[i];
+
+        if (!c)
+            break;
+
+        for (j = 0; j < len; ++j) {
+            if (c == tok[j]) {
+                if (dest) {
+                    tempString[dest] = 0;
+                    Scr_AddString(tempString);
+                    Scr_AddArray();
+                    dest = 0;
+                }
+
+                goto skip;
+            }
+        }
+
+        tempString[dest] = c;
+
+        if (++dest > 1023) {
+            Com_Printf("gsc_utils_strtok() string too long");
+            return;
+        }
+    skip:;
+    }
+
+    if (dest) {
+        tempString[dest] = 0;
+        Scr_AddString(tempString);
+        Scr_AddArray();
+    }
+}
+
 /* VERIFIED_DECOMPILER(0x6c348, 7c348_script_func_setplayerignoreradiusdamage.c, VERIFY-SCRIPT-BUILTINS-TRIGGER-MENU-TRACE-2026-06-17): DATAFLOW_VERIFIED; bool fetch and ignore-player setting store checked against current decompiler output. */
 void script_func_setplayerignoreradiusdamage(void)
 {
@@ -4484,7 +4537,7 @@ void script_func_ambientstop(void)
                                  (uint32_t)level.time)));
 }
 
-#define SCRIPT_FUNCTION_COUNT 120u
+#define SCRIPT_FUNCTION_COUNT 121u
 #define SCRIPTBUILTIN_METHOD_COUNT 56u
 #define SCRIPTENT_METHOD_COUNT 12u
 
@@ -4782,6 +4835,7 @@ const script_function_t functions[SCRIPT_FUNCTION_COUNT] = {
     {"setarchive", script_func_setarchive, 0},
     {"prof_begin", Scr_Prof_Begin, 0},
     {"prof_end", Scr_Prof_End, 0},
+    {"strtok", script_func_strtok, 0},
 };
 
 typedef char script_functions_count_check[
