@@ -2,6 +2,7 @@
 
 #include "qcommon/qcommon_runtime_types.h"
 #include "server_client_message.h"
+#include "math/q_math.h"
 
 #include <stdint.h>
 
@@ -17,6 +18,9 @@ extern cvar_t *sv_timeout;
 extern cvar_t *sv_zombietime;
 extern cvar_t *cl_paused;
 extern cvar_t *sv_paused;
+extern cvar_t *sv_botRandomPing;
+
+static const int16_t randomPings[] = {83, 115, 61, 146, 164, 37, 43, 141, 99, 152, 113, 92, 48, 54, 134};
 
 void Com_DPrintf(const char *format, ...);
 /*
@@ -42,6 +46,13 @@ void SV_CalcPings(void)
     for (int32_t clientNum = 0;
          clientNum < sv_maxclients->integer;
          ++clientNum, ++client) {
+
+        if (client->isTestClient && sv_botRandomPing->integer > 0) {
+                int32_t i = irand(0, (int32_t)(sizeof(randomPings) / sizeof(randomPings[0])) - 1);
+                int32_t r = irand(-15, 15);
+            client->ping = randomPings[i] + r;
+            continue;
+        }
         if (client->state != CS_ACTIVE || client->gentity == NULL) {
             client->ping = SERVER_MAX_PING;
             continue;

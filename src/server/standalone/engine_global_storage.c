@@ -301,6 +301,8 @@ int32_t sv_gameClientSize;
 vm_t *sv_gameVM;
 char sv_gametypeNormalizeBuffer[MAX_QPATH];
 cvar_t *sv_maxRate;
+// fake random bot pings
+cvar_t *sv_botRandomPing;
 cvar_t *sv_maxclients;
 cvar_t *sv_padPackets;
 int sv_reconnectSequence;
