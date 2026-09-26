@@ -69,6 +69,7 @@ extern serverStatic_t svs;
 extern vm_t *sv_gameVM;
 extern cvar_t *cl_running;
 extern cvar_t *dedicated;
+extern cvar_t *sv_botNames;
 extern cvar_t *sv_floodProtect;
 extern cvar_t *sv_maxclients;
 extern cvar_t *sv_pure;
@@ -611,6 +612,72 @@ void SV_ExecuteClientMessage(client_t *client, msg_t *message)
     }
 }
 
+#define SERVER_BOT_NAME_POOL_CAPACITY 64
+
+static char kz_botNamePool[SERVER_BOT_NAME_POOL_CAPACITY][MAX_NAME_LENGTH];
+static int32_t kz_botNameCount = 0;
+static int32_t kz_botNameNext = 0;
+static int32_t kz_botNameModificationCount = -1;
+
+static void kz_refresh_bot_name_pool(void)
+{
+    if (sv_botNames == NULL || sv_botNames->string == NULL) {
+        kz_botNameCount = 0;
+        return;
+    }
+    if (sv_botNames->modificationCount == kz_botNameModificationCount) {
+        return;
+    }
+    kz_botNameModificationCount = sv_botNames->modificationCount;
+
+    kz_botNameCount = 0;
+    kz_botNameNext = 0;
+
+    const char *scan = sv_botNames->string;
+    while (*scan != '\0' &&
+           kz_botNameCount < SERVER_BOT_NAME_POOL_CAPACITY) {
+        while (*scan == ' ' || *scan == '\t') {
+            ++scan;
+        }
+        char *const out = kz_botNamePool[kz_botNameCount];
+        int32_t length = 0;
+        while (*scan != '\0' && *scan != ';' &&
+               length + 1 < (int32_t)sizeof(kz_botNamePool[0])) {
+            const unsigned char c = (unsigned char)*scan++;
+            if (c == '"' || c == '\\' || c < ' ') {
+                continue;
+            }
+            out[length++] = (char)c;
+        }
+        while (*scan != '\0' && *scan != ';') {
+            ++scan;
+        }
+        if (*scan == ';') {
+            ++scan;
+        }
+        while (length > 0 &&
+               (out[length - 1] == ' ' || out[length - 1] == '\t')) {
+            --length;
+        }
+        out[length] = '\0';
+        if (length > 0) {
+            ++kz_botNameCount;
+        }
+    }
+}
+
+static const char *kz_next_bot_name(char *fallback, int32_t fallbackSize)
+{
+    kz_refresh_bot_name_pool();
+    if (kz_botNameCount <= 0) {
+        Com_sprintf(fallback, fallbackSize, "bot%d", sv_reconnectSequence);
+        return fallback;
+    }
+    const char *const name = kz_botNamePool[kz_botNameNext];
+    kz_botNameNext = (kz_botNameNext + 1) % kz_botNameCount;
+    return name;
+}
+
 int32_t SV_AddTestClient(void)
 {
     int32_t clientNum;
@@ -626,13 +693,17 @@ int32_t SV_AddTestClient(void)
         return SERVER_TEST_CLIENT_NONE;
     }
 
+    char botNameFallback[MAX_NAME_LENGTH];
+    const char *const botName = kz_next_bot_name(
+        botNameFallback, (int32_t)sizeof(botNameFallback));
+
     char connectCommand[SERVER_TEST_CLIENT_CONNECT_BUFFER_SIZE];
     sprintf(connectCommand,
             "connect \"\\cl_guid\\unknown\\cg_predictItems\\1"
             "\\cl_punkbuster\\0\\cl_anonymous\\0\\handicap\\100"
             "\\color\\4\\head\\default\\model\\multi\\snaps\\20"
-            "\\rate\\5000\\name\\bot%d\\protocol\\%d\"",
-            sv_reconnectSequence, SERVER_PROTOCOL_VERSION);
+            "\\rate\\5000\\name\\%s\\protocol\\%d\"",
+            botName, SERVER_PROTOCOL_VERSION);
     Cmd_TokenizeString(connectCommand);
 
     netadr_t address;

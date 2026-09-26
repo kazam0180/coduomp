@@ -1,5 +1,6 @@
 #include "server_client_maintenance.h"
 
+#include "qcommon/qcommon_limits.h"
 #include "qcommon/qcommon_runtime_types.h"
 #include "server_client_message.h"
 #include "math/q_math.h"
@@ -19,8 +20,11 @@ extern cvar_t *sv_zombietime;
 extern cvar_t *cl_paused;
 extern cvar_t *sv_paused;
 extern cvar_t *sv_botRandomPing;
+extern cvar_t *sv_botRandomPingJitter;
 
 static const int16_t randomPings[] = {83, 115, 61, 146, 164, 37, 43, 141, 99, 152, 113, 92, 48, 54, 134};
+static int32_t botBasePing[MAX_CLIENTS];
+static int8_t botPingSign[MAX_CLIENTS];
 
 void Com_DPrintf(const char *format, ...);
 /*
@@ -48,9 +52,22 @@ void SV_CalcPings(void)
          ++clientNum, ++client) {
 
         if (client->isTestClient && sv_botRandomPing->integer > 0) {
-                int32_t i = irand(0, (int32_t)(sizeof(randomPings) / sizeof(randomPings[0])) - 1);
-                int32_t r = irand(-15, 15);
-            client->ping = randomPings[i] + r;
+            const int32_t botNum = (int32_t)(client - svs.clients);
+            if (botBasePing[botNum] <= 0 ||
+                botBasePing[botNum] >= SERVER_MAX_PING ||
+                client->ping <= 0 || client->ping >= SERVER_MAX_PING) {
+                botBasePing[botNum] = randomPings[
+                    irand(0, (int32_t)(sizeof(randomPings) / sizeof(randomPings[0])) - 1)
+                ];
+                botPingSign[botNum] = 1;
+            }
+            botPingSign[botNum] = -botPingSign[botNum];
+            client->ping = botBasePing[botNum] + botPingSign[botNum]
+                * irand(0, sv_botRandomPingJitter->integer);
+            if (client->ping < 1)
+                client->ping = 1;
+            else if (client->ping > SERVER_MAX_PING)
+                client->ping = SERVER_MAX_PING;
             continue;
         }
         if (client->state != CS_ACTIVE || client->gentity == NULL) {
