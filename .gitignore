@@ -13,3 +13,7 @@ __pycache__/
 *.dylib
 *.dll
 *.exe
+
+*~
+*.tmp
+compile_commands.json
