@@ -6,6 +6,8 @@
 #include "math/q_math.h"
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 enum {
     SERVER_MAX_PING = 999,
@@ -21,10 +23,62 @@ extern cvar_t *cl_paused;
 extern cvar_t *sv_paused;
 extern cvar_t *sv_botRandomPing;
 extern cvar_t *sv_botRandomPingJitter;
+extern cvar_t *sv_botPings;
 
-static const int16_t randomPings[] = {83, 115, 61, 146, 164, 37, 43, 141, 99, 152, 113, 92, 48, 54, 134};
+#define SERVER_BOT_PING_POOL_CAPACITY 64
+#define SERVER_BOT_PING_FALLBACK 80
+
+static int32_t botPingPool[SERVER_BOT_PING_POOL_CAPACITY];
+static int32_t botPingPoolCount = 0;
+static int32_t botPingPoolModificationCount = -1;
 static int32_t botBasePing[MAX_CLIENTS];
 static int8_t botPingSign[MAX_CLIENTS];
+
+static void refreshBotPingPool(void)
+{
+    if (sv_botPings == NULL || sv_botPings->string == NULL) {
+        if (botPingPoolCount == 0) {
+            botPingPool[0] = SERVER_BOT_PING_FALLBACK;
+            botPingPoolCount = 1;
+        }
+        return;
+    }
+    if (sv_botPings->modificationCount == botPingPoolModificationCount) {
+        return;
+    }
+    botPingPoolModificationCount = sv_botPings->modificationCount;
+
+    botPingPoolCount = 0;
+    const char *scan = sv_botPings->string;
+    while (*scan != '\0' && botPingPoolCount < SERVER_BOT_PING_POOL_CAPACITY) {
+        while (*scan == ' ' || *scan == '\t') {
+            ++scan;
+        }
+        if (*scan == '\0') {
+            break;
+        }
+        if (*scan == ';') {
+            ++scan;
+            continue;
+        }
+        const int32_t value = atoi(scan);
+        while (*scan != '\0' && *scan != ';') {
+            ++scan;
+        }
+        if (*scan == ';') {
+            ++scan;
+        }
+        if (value < 1 || value > SERVER_MAX_PING) {
+            continue;
+        }
+        botPingPool[botPingPoolCount++] = value;
+    }
+    if (botPingPoolCount == 0) {
+        botPingPool[0] = SERVER_BOT_PING_FALLBACK;
+        botPingPoolCount = 1;
+    }
+    memset(botBasePing, 0, sizeof(botBasePing));
+}
 
 void Com_DPrintf(const char *format, ...);
 /*
@@ -53,12 +107,12 @@ void SV_CalcPings(void)
 
         if (client->isTestClient && sv_botRandomPing->integer > 0) {
             const int32_t botNum = (int32_t)(client - svs.clients);
-            if (botBasePing[botNum] <= 0 ||
-                botBasePing[botNum] >= SERVER_MAX_PING ||
-                client->ping <= 0 || client->ping >= SERVER_MAX_PING) {
-                botBasePing[botNum] = randomPings[
-                    irand(0, (int32_t)(sizeof(randomPings) / sizeof(randomPings[0])) - 1)
-                ];
+            refreshBotPingPool();
+            if (botBasePing[botNum] <= 0
+                || botBasePing[botNum] >= SERVER_MAX_PING
+                || client->ping <= 0
+                || client->ping >= SERVER_MAX_PING) {
+                botBasePing[botNum] = botPingPool[irand(0, botPingPoolCount - 1)];
                 botPingSign[botNum] = 1;
             }
             botPingSign[botNum] = -botPingSign[botNum];

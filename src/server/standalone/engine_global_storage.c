@@ -303,6 +303,7 @@ char sv_gametypeNormalizeBuffer[MAX_QPATH];
 cvar_t *sv_maxRate;
 // fake random bot pings
 cvar_t *sv_botRandomPing;
+cvar_t *sv_botPings;
 cvar_t *sv_botRandomPingJitter;
 // bot names
 cvar_t *sv_botNames;
