@@ -21,6 +21,7 @@ enum { SV_FINAL_MESSAGE_PASSES = 2 };
 extern cvar_t *sv_botRandomPing;
 extern cvar_t *sv_botRandomPingJitter;
 extern cvar_t *sv_botNames;
+extern cvar_t *sv_botPings;
 extern serverStatic_t svs;
 extern cvar_t *sv_running;
 extern cvar_t *g_gametype;
@@ -98,6 +99,9 @@ void SV_Init(void)
     sv_botRandomPing = Cvar_Get("sv_botRandomPing", "0", CVAR_ARCHIVE);
     sv_botRandomPingJitter = Cvar_Get("sv_botRandomPingJitter", "5", CVAR_ARCHIVE);
     sv_botNames = Cvar_Get("sv_botNames", "", CVAR_ARCHIVE);
+    sv_botPings = Cvar_Get("sv_botPings",
+                           "83;115;61;146;164;37;43;141;99;152;113;92;48;54;134",
+                           CVAR_ARCHIVE);
     sv_mapname = Cvar_Get("mapname", "nomap", CVAR_ROM | CVAR_SERVERINFO);
     sv_privateClients = Cvar_Get("sv_privateClients", "0", CVAR_SERVERINFO);
     sv_hostname = Cvar_Get("sv_hostname", "CoDHost",
