@@ -77,6 +77,10 @@ long double PM_GetSlowdownFriction(void)
 {
     const int32_t time = pm->ps->pmTime;
 
+    // NOT_FROM_ORIGINAL_SOURCE
+    if (bg_jumpSlowdownEnable.integer == 0)
+        return PM_JUMP_FRICTION_SCALE_BASE;
+
     if (time >= PM_JUMP_FRICTION_SCALE_SATURATE_MS) {
         return PM_JUMP_FRICTION_SCALE_MAX;
     }
@@ -89,6 +93,10 @@ long double PM_GetJumpFactor(void)
 {
     const int32_t time = pm->ps->pmTime;
 
+    // NOT_FROM_ORIGINAL_SOURCE
+    if (bg_jumpSlowdownEnable.integer == 0)
+        return PM_JUMP_FRICTION_SCALE_BASE;
+
     if (time >= PM_JUMP_FRICTION_SCALE_SATURATE_MS) {
         return PM_JUMP_FRICTION_SCALE_MAX;
     }
@@ -100,6 +108,10 @@ long double PM_GetJumpFactor(void)
 long double PM_GetSlowdownFriction(void)
 {
     float value;
+
+    // NOT_FROM_ORIGINAL_SOURCE
+    if (bg_jumpSlowdownEnable.integer == 0)
+        return PM_JUMP_FRICTION_SCALE_BASE;
 
     if (pm->ps->pmTime >= PM_JUMP_FRICTION_SCALE_SATURATE_MS) {
         return PM_JUMP_FRICTION_SCALE_MAX;
@@ -123,6 +135,10 @@ long double PM_GetSlowdownFriction(void)
 long double PM_GetJumpFactor(void)
 {
     float value;
+
+    // NOT_FROM_ORIGINAL_SOURCE
+    if (bg_jumpSlowdownEnable.integer == 0)
+        return PM_JUMP_FRICTION_SCALE_BASE;
 
     if (pm->ps->pmTime >= PM_JUMP_FRICTION_SCALE_SATURATE_MS) {
         return PM_JUMP_FRICTION_SCALE_MAX;

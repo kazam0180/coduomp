@@ -120,6 +120,7 @@ void cgame_compat_reset_module_load_state(void)
     com_parseSession = &com_parseSessions[0];
 
     cgame_compat_reset_presentation_state();
+    cgame_compat_reset_movement_state();
     srand(1);
 }
 

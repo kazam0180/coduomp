@@ -297,6 +297,19 @@ void G_RegisterCvars(void)
      * voting; otherwise both game-type vote commands use this allowlist. */
     trap_Cvar_Register(&g_voteGameTypes, "g_voteGameTypes", "", CVAR_ARCHIVE);
 
+    /* NOT_FROM_ORIGINAL_SOURCE: t1x fs_callbacks_additional port; names an
+     * extra script that may define custom callbacks. Empty disables it. */
+    trap_Cvar_Register(&fs_callbacksAdditional, "fs_callbacks_additional",
+                       "", CVAR_ARCHIVE);
+
+    /* NOT_FROM_ORIGINAL_SOURCE: t1x jump_slowdownEnable port. Nonzero keeps the
+     * retail post-jump movement slowdown; zero removes the landing velocity
+     * cut, the post-jump friction ramp, and the re-jump launch-energy divisor.
+     * Systeminfo so a connected client's prediction runs the same physics the
+     * server does. */
+    trap_Cvar_Register(&bg_jumpSlowdownEnable, "jump_slowdownEnable", "1",
+                       CVAR_ARCHIVE | CVAR_SYSTEMINFO);
+
     if (Scr_IsValidGameType(g_gametype.string) == 0) {
         G_Printf("g_gametype %s is not a valid gametype, defaulting to dm\n",
                  g_gametype.string);
@@ -338,6 +351,9 @@ void G_UpdateCvars(void)
 
     /* NOT_FROM_ORIGINAL_SOURCE: allow vote policy changes without a map restart. */
     trap_Cvar_Update(&g_voteGameTypes);
+
+    // NOT_FROM_ORIGINAL_SOURCE
+    trap_Cvar_Update(&bg_jumpSlowdownEnable);
 }
 
 /* ------------------------------------------------------------------ */

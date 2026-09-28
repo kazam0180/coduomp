@@ -22,6 +22,12 @@ extern vmCvar_t bg_foliagesnd_slowinterval;
 extern vmCvar_t bg_foliagesnd_fastinterval;
 extern vmCvar_t bg_foliagesnd_resetinterval;
 extern vmCvar_t bg_viewheight_standing;
+/* NOT_FROM_ORIGINAL_SOURCE: module-side mirror of the jump_slowdownEnable
+ * cvar. Nonzero keeps the retail post-jump movement slowdown; zero drops the
+ * landing velocity cut, the post-jump friction ramp, and the re-jump launch
+ * energy divisor, so a jump keeps its momentum and a second jump inside the
+ * 1800 ms window launches at full strength. */
+extern vmCvar_t bg_jumpSlowdownEnable;
 extern const float pm_ladderPushOff;
 extern const int32_t pm_ladderJumpTime;
 extern const float pm_ladderScale;

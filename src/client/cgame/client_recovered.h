@@ -2541,6 +2541,13 @@ void CG_OffsetThirdPersonView(void);
 /* NOT_FROM_ORIGINAL_SOURCE: dllEntry lifecycle reset used by every build. */
 void cgame_compat_reset_presentation_state(void);
 
+/* NOT_FROM_ORIGINAL_SOURCE: movement-policy cvar lifecycle, kept apart from the
+ * presentation cluster above. jump_slowdownEnable is read by the recovered
+ * shared pmove code in src/bg, which both the game module and cgame compile. */
+void cgame_compat_reset_movement_state(void);
+void cgame_compat_register_movement_cvars(void);
+void cgame_compat_update_movement_cvars(void);
+
 /* Core view-refdef builder cluster. CG_CalcViewValues (0x30041a30) dispatches
  * these no-argument helpers. CG_CalcTurretViewValues and
  * CG_OffsetFirstPersonView are caller-observed declarations whose names are

@@ -298,6 +298,7 @@ CGAME_C_SOURCES := \
 	src/client/cgame/module/cg_shellshock_load_f.c \
 	src/client/cgame/module/cg_shutdowneffectsandhud.c \
 	src/client/cgame/module/cg_voicechat_f.c \
+	src/client/cgame/module/cgame_compat_movement.c \
 	src/client/cgame/module/cgame_entry.c \
 	src/client/cgame/module/cgame_imports.c \
 	src/client/cgame/module/cgame_vm_main.c \

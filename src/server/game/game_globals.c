@@ -199,6 +199,8 @@ vmCvar_t bg_foliagesnd_maxspeed;
 vmCvar_t bg_foliagesnd_slowinterval;
 vmCvar_t bg_foliagesnd_fastinterval;
 vmCvar_t bg_foliagesnd_resetinterval;
+// NOT_FROM_ORIGINAL_SOURCE: t1x jump_slowdownEnable port
+vmCvar_t bg_jumpSlowdownEnable;
 vmCvar_t bg_fallDamageMinHeight;
 vmCvar_t bg_fallDamageMaxHeight;
 vmCvar_t bg_debugWeaponAnim;
