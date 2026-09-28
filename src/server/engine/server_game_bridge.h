@@ -11,6 +11,8 @@ extern "C" {
 
 void SV_GameSendServerCommand(int32_t clientNum, qboolean reliable,
                               const char *command);
+void SV_GameConnectionlessPacketToClient(int32_t clientNum,
+                                         const char *command);
 void SV_GameDropClient(int32_t clientNum, const char *reason);
 void SV_GetServerinfo(char *buffer, int32_t bufferSize);
 void SV_GetUsercmd(int32_t clientNum, usercmd_t *command);

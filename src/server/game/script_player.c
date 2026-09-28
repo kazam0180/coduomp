@@ -1830,6 +1830,34 @@ void PlayerCmd_ClientAutoScreenshot(uint32_t entityNum)
         AUTOSCREENSHOT_COMMAND);
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: t1x connectionlessPacketToClient port. Sends
+ * an out-of-band packet to this player's address. */
+void PlayerCmd_ConnectionlessPacketToClient(uint32_t entityNum)
+{
+    gentity_t *ent;
+    const char *command;
+
+    if (entityNum > ENTITYNUM_NONE) {
+        Scr_Error(va("%i is not a valid entity number", (int)entityNum));
+    }
+
+    ent = &g_entities[entityNum];
+    if (ent->client == NULL) {
+        Scr_Error(va("entity %i is not a player", (int)entityNum));
+    }
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_STRING) {
+        Com_Printf("connectionlessPacketToClient: USAGE: self connectionlessPacketToClient <command>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    command = Scr_GetString(0);
+    trap_SendConnectionlessPacket(ent->s.number, command);
+    Scr_AddBool(qtrue);
+}
+
 static const script_method_t playerMethods[] = {
     {"giveweapon", PlayerCmd_giveWeapon},
     {"takeweapon", PlayerCmd_takeWeapon},
@@ -1891,6 +1919,7 @@ static const script_method_t playerMethods[] = {
     {"autodemostart", PlayerCmd_AutoDemoStart},
     {"autodemostop", PlayerCmd_AutoDemoStop},
     {"autoscreenshot", PlayerCmd_ClientAutoScreenshot},
+    {"connectionlesspackettoclient", PlayerCmd_ConnectionlessPacketToClient},
 };
 
 /* VERIFIED_DECOMPILER(0x49ed6, 59ed6_Player_GetMethod.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entry-time requested-name capture, 60-entry table lookup, strcmp loop, canonical name writeback, callback return, and null miss checked. */
