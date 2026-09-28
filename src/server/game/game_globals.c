@@ -174,6 +174,8 @@ vmCvar_t g_deadChat;
 vmCvar_t g_allowGlobalChat;
 /* NOT_FROM_ORIGINAL_SOURCE: optional list of game types permitted by votes. */
 vmCvar_t g_voteGameTypes;
+/* NOT_FROM_ORIGINAL_SOURCE: optional extra script for custom callbacks. */
+vmCvar_t fs_callbacksAdditional;
 vmCvar_t g_developer;
 vmCvar_t g_ScoresBanner_Allies;
 vmCvar_t g_ScoresBanner_Axis;

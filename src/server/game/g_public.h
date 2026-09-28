@@ -28,6 +28,7 @@ extern void ClientBegin(int clientNum);
 extern void ClientUserinfoChanged(int clientNum);
 extern void ClientDisconnect(int clientNum);
 extern void ClientCommand(int clientNum);
+extern void ClientCommand_SetCallback(uint32_t handle);
 extern void ClientThink(int clientNum);
 extern qboolean GetFollowPlayerState(int clientNum, void *playerState);
 extern void G_RunFrame(int levelTime);

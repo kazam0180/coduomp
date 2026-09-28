@@ -2281,6 +2281,45 @@ void Cmd_MatchTimein_f(gentity_t *ent)
 /* "unknown command" format string at ELF 0x0a0f740 */
 
 /* ------------------------------------------------------------------ */
+/* Custom CodeCallback_PlayerCommand handle loaded from the gametype
+ * callback-setup script. Zero selects the stock command handling below. */
+static uint32_t clientCommandCallbackHandle = 0;
+
+void ClientCommand_SetCallback(uint32_t handle)
+{
+    clientCommandCallbackHandle = handle;
+}
+
+/* Ported from t1x hook_ClientCommand: hand every client command to script
+ * as an argument array. Chat text (argv 1 carrying a 0x14..0x16 marker
+ * byte) arrives as a single token and is split into words like the
+ * reference; the stock handling is skipped while a callback is set. */
+static void ClientCommand_RunCallback(gentity_t *ent)
+{
+    const int argc = trap_Argc();
+
+    Scr_MakeArray();
+    for (int index = 0; index < argc; ++index) {
+        char arg[MAX_STRING_CHARS];
+
+        trap_Argv(index, arg, sizeof(arg));
+        if (index == 1 && arg[0] >= 0x14 && arg[0] <= 0x16) {
+            char *word = strtok(arg + 1, " ");
+            while (word != NULL) {
+                Scr_AddString(word);
+                Scr_AddArray();
+                word = strtok(NULL, " ");
+            }
+        } else {
+            Scr_AddString(arg);
+            Scr_AddArray();
+        }
+    }
+
+    uint16_t threadId = Scr_ExecEntThread(ent, clientCommandCallbackHandle, 1);
+    Scr_FreeThread(threadId);
+}
+
 /*  0x4eedd / image 0x5eedd  ClientCommand                            */
 /* ------------------------------------------------------------------ */
 
@@ -2292,7 +2331,7 @@ void Cmd_MatchTimein_f(gentity_t *ent)
  * on the client not being in intermission.
  */
 /* VERIFIED_DECOMPILER(0x4eedd, 5eedd_ClientCommand.c, VERIFY-WAVE3-CLIENT-COMMANDS-STANCE-TEAM-2026-06-17): DATAFLOW_VERIFIED - chat/score pre-gate routing, non-intermission command order, follow direction constants, and gated unknown-command send checked. */
-void ClientCommand(int clientNum)
+static void ClientCommand_Stock(int clientNum)
 {
     gentity_t *ent;
     char cmd[MAX_STRING_CHARS];
@@ -2428,4 +2467,30 @@ void ClientCommand(int clientNum)
         /* Unknown command */
         trap_SendServerCommand(clientNum, 0, va(unknownCmdFmt, cmd));
     }
+}
+
+void ClientCommand(int clientNum)
+{
+    gentity_t *ent = &g_entities[clientNum];
+
+    if (ent->client == NULL) {
+        return;
+    }
+
+    if (clientCommandCallbackHandle != 0) {
+        ClientCommand_RunCallback(ent);
+        return;
+    }
+
+    ClientCommand_Stock(clientNum);
+}
+
+/* t1x processClientCommand port: player method re-running the stock
+ * handling for the current command, e.g. after a chat-command check
+ * decides the command is not a custom one. */
+void GScr_ProcessClientCommand(uint32_t scriptObject)
+{
+    gentity_t *ent = script_object_to_player(scriptObject);
+
+    ClientCommand_Stock(ent->s.number);
 }

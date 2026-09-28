@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "recovered_game.h"
+#include "g_public.h"
 #include "compat/crt/atof_compat.h"
 #include "compat/crt/scan_compat.h"
 #include "compat/coduo_ctype_compat.h"
@@ -1127,6 +1128,26 @@ void script_func_getfullclipammo(void)
     const weaponInfo_t *weaponInfo = BG_GetInfoForWeapon(weapon);
 
     Scr_AddInt(weaponInfo->clipSize);
+}
+
+#define SCRIPT_WEAPON_FIRE_TYPE_BOLT "bolt"
+#define SCRIPT_WEAPON_FIRE_TYPE_SEMIAUTO "semiauto"
+#define SCRIPT_WEAPON_FIRE_TYPE_AUTO "auto"
+
+// NOT_FROM_ORIGINAL_SOURCE
+void script_func_getweaponfiretype(void)
+{
+    const char *weaponName = Scr_GetString(0);
+    int weapon = game_compat_script_weapon_index_for_name(weaponName);
+    const weaponInfo_t *weaponInfo = BG_GetInfoForWeapon(weapon);
+
+    if (weaponInfo->raiseEnabled != 0) {
+        Scr_AddString(SCRIPT_WEAPON_FIRE_TYPE_BOLT);
+    } else if (weaponInfo->weaponTimeHold != 0) {
+        Scr_AddString(SCRIPT_WEAPON_FIRE_TYPE_SEMIAUTO);
+    } else {
+        Scr_AddString(SCRIPT_WEAPON_FIRE_TYPE_AUTO);
+    }
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: local helper extracted from recovered script builtin behavior (game_compat_script_spawn_var_active). */
@@ -3033,6 +3054,70 @@ void script_func_strtok(void) // from cod2rev
     }
 }
 
+void script_func_namefix(void) // MiscMod namefix() port
+{
+    int32_t j;
+    char c;
+    int32_t dest;
+    int32_t i;
+    const char* playername;
+    const char* allowedchars;
+    char tempString[1024];
+
+    if (Scr_GetNumParam() == 0 ||
+        Scr_GetType(0) == SCRIPT_VAR_UNDEFINED) {
+        Scr_AddString(SCRIPT_EMPTY_STRING);
+        return;
+    }
+
+    playername = Scr_GetString(0);
+    allowedchars = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!'#[]<>/&()=?+`^~*-_.,;|$@:{}";
+    dest = 0;
+
+    for (i = 0;; ++i) {
+        c = playername[i];
+
+        if (!c)
+            break;
+
+        for (j = 0; allowedchars[j] != '\0'; ++j) {
+            if (c == allowedchars[j]) {
+                tempString[dest] = c;
+
+                if (++dest > 1023) {
+                    Com_Printf("namefix() string too long");
+                    return;
+                }
+
+                goto skip;
+            }
+        }
+    skip:;
+    }
+
+    tempString[dest] = 0;
+    Scr_AddString(tempString);
+}
+
+void script_func_sendcommandtoclient(void) // ported from t1x sendCommandToClient
+{
+    int32_t clientNum;
+    const char *message;
+
+    if (Scr_GetNumParam() < 2 ||
+        Scr_GetType(0) != SCRIPT_VAR_INT ||
+        Scr_GetType(1) != SCRIPT_VAR_STRING) {
+        Com_Printf("sendcommandtoclient: USAGE: sendcommandtoclient <client number> <command>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    clientNum = Scr_GetInt(0);
+    message = Scr_GetString(1);
+    trap_SendServerCommand(clientNum, UNRELIABLE_SERVER_COMMAND, message);
+    Scr_AddBool(qtrue);
+}
+
 /* VERIFIED_DECOMPILER(0x6c348, 7c348_script_func_setplayerignoreradiusdamage.c, VERIFY-SCRIPT-BUILTINS-TRIGGER-MENU-TRACE-2026-06-17): DATAFLOW_VERIFIED; bool fetch and ignore-player setting store checked against current decompiler output. */
 void script_func_setplayerignoreradiusdamage(void)
 {
@@ -4537,7 +4622,7 @@ void script_func_ambientstop(void)
                                  (uint32_t)level.time)));
 }
 
-#define SCRIPT_FUNCTION_COUNT 121u
+#define SCRIPT_FUNCTION_COUNT 124u
 #define SCRIPTBUILTIN_METHOD_COUNT 56u
 #define SCRIPTENT_METHOD_COUNT 12u
 
@@ -4836,6 +4921,9 @@ const script_function_t functions[SCRIPT_FUNCTION_COUNT] = {
     {"prof_begin", Scr_Prof_Begin, 0},
     {"prof_end", Scr_Prof_End, 0},
     {"strtok", script_func_strtok, 0},
+    {"namefix", script_func_namefix, 0},
+    {"sendcommandtoclient", script_func_sendcommandtoclient, 0},
+    {"getweaponfiretype", script_func_getweaponfiretype, 0},
 };
 
 typedef char script_functions_count_check[
@@ -5228,6 +5316,25 @@ void GScr_LoadGameTypeScript(void)
     g_scr_data.playerKilled =
         Script_LoadFunctionHandle(GAMETYPE_CALLBACK_SETUP_SCRIPT,
                                   SCRIPT_CALLBACK_PLAYER_KILLED, qtrue);
+    /* Optional custom callback (0 when the mod does not define it); the
+     * setup script is already loaded, so a plain handle lookup suffices. */
+    ClientCommand_SetCallback(
+        Scr_GetFunctionHandle(GAMETYPE_CALLBACK_SETUP_SCRIPT,
+                              "CodeCallback_PlayerCommand"));
+    /* t1x fs_callbacks_additional port: a mod may keep custom callbacks in
+     * a separate script; a handle found there takes precedence. */
+    if (fs_callbacksAdditional.string[0] != '\0') {
+        if (Scr_LoadScript(fs_callbacksAdditional.string) != 0) {
+            uint32_t additionalHandle = Scr_GetFunctionHandle(
+                fs_callbacksAdditional.string, "CodeCallback_PlayerCommand");
+            if (additionalHandle != 0) {
+                ClientCommand_SetCallback(additionalHandle);
+            }
+        } else {
+            Com_DPrintf("GScr_LoadGameTypeScript: Scr_LoadScript for "
+                        "fs_callbacks_additional failed.\n");
+        }
+    }
 }
 
 /* VERIFIED_DECOMPILER(0x664f9, 764f9_FUN_000764f9.c, VERIFY-SCRIPT-BUILTINS-REGISTRY-LOAD-2026-06-17): DATAFLOW_VERIFIED; mapname cvar registration, 64-byte level script path format, optional main-label load, and handle store checked against current decompiler output. */

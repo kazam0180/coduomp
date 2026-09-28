@@ -1830,8 +1830,75 @@ void PlayerCmd_ClientAutoScreenshot(uint32_t entityNum)
         AUTOSCREENSHOT_COMMAND);
 }
 
-/* NOT_FROM_ORIGINAL_SOURCE: t1x connectionlessPacketToClient port. Sends
- * an out-of-band packet to this player's address. */
+
+// NOT_FROM_ORIGINAL_SOURCE
+void PlayerCmd_DropClient(uint32_t entityNum)
+{
+    gentity_t *ent;
+    const char *reason;
+
+    if (entityNum > ENTITYNUM_NONE) {
+        Scr_Error(va("%i is not a valid entity number", (int)entityNum));
+    }
+
+    ent = &g_entities[entityNum];
+    if (ent->client == NULL) {
+        Scr_Error(va("entity %i is not a player", (int)entityNum));
+    }
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_STRING) {
+        Com_Printf("dropclient: USAGE: self dropclient <reason>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    reason = Scr_GetString(0);
+    trap_DropClient(ent->s.number, reason);
+    Scr_AddBool(qtrue);
+}
+
+// NOT_FROM_ORIGINAL_SOURCE
+void PlayerCmd_IsOnLadder(uint32_t entityNum)
+{
+    gentity_t *ent;
+
+    if (entityNum > ENTITYNUM_NONE) {
+        Com_Printf("isonladder: %i is not a valid entity number\n",
+                   (int)entityNum);
+        Scr_AddUndefined();
+        return;
+    }
+
+    ent = &g_entities[entityNum];
+    if (ent->client == NULL) {
+        Com_Printf("isonladder: entity %i is not a player\n",
+                   (int)entityNum);
+        Scr_AddUndefined();
+        return;
+    }
+
+    Scr_AddBool((ent->client->ps.playerStateFlags & PMF_LADDER) != 0);
+}
+
+// NOT_FROM_ORIGINAL_SOURCE
+void PlayerCmd_GetPing(uint32_t entityNum)
+{
+    gentity_t *ent;
+
+    if (entityNum > ENTITYNUM_NONE) {
+        Scr_Error(va("%i is not a valid entity number", (int)entityNum));
+    }
+
+    ent = &g_entities[entityNum];
+    if (ent->client == NULL) {
+        Scr_Error(va("entity %i is not a player", (int)entityNum));
+    }
+
+    Scr_AddInt(trap_GetClientPing(ent->s.number));
+}
+
+// NOT_FROM_ORIGINAL_SOURCE
 void PlayerCmd_ConnectionlessPacketToClient(uint32_t entityNum)
 {
     gentity_t *ent;
@@ -1878,6 +1945,7 @@ static const script_method_t playerMethods[] = {
     {"isads", PlayerCmd_isAds},
     {"isinvehicle", PlayerCmd_isInVehicle},
     {"isonground", PlayerCmd_isOnGround},
+    {"isonladder", PlayerCmd_IsOnLadder},
     {"pingplayer", PlayerCmd_pingPlayer},
     {"setviewmodel", PlayerCmd_SetViewmodel},
     {"getviewmodel", PlayerCmd_GetViewmodel},
@@ -1919,7 +1987,10 @@ static const script_method_t playerMethods[] = {
     {"autodemostart", PlayerCmd_AutoDemoStart},
     {"autodemostop", PlayerCmd_AutoDemoStop},
     {"autoscreenshot", PlayerCmd_ClientAutoScreenshot},
+    {"processclientcommand", GScr_ProcessClientCommand},
     {"connectionlesspackettoclient", PlayerCmd_ConnectionlessPacketToClient},
+    {"getping", PlayerCmd_GetPing},
+    {"dropclient", PlayerCmd_DropClient},
 };
 
 /* VERIFIED_DECOMPILER(0x49ed6, 59ed6_Player_GetMethod.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entry-time requested-name capture, 60-entry table lookup, strcmp loop, canonical name writeback, callback return, and null miss checked. */
