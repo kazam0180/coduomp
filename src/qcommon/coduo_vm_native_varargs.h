@@ -171,6 +171,7 @@ typedef struct coduo_native_vararg_layout_s {
     X(SYSCALL_FREE_WEAPON_INFO_MEMORY, "i") \
     X(SYSCALL_FREE_CLIENT_SCRIPT_PERS, "") \
     X(SYSCALL_RESET_ENTITY_PARSE_POINT, "") \
+    X(SYSCALL_SEND_CONNECTIONLESS_PACKET, "ip") \
     X(SYSCALL_MEMSET, "piz") \
     X(SYSCALL_MEMCPY, "ppz") \
     X(SYSCALL_STRNCPY, "ppi") \

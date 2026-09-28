@@ -1,6 +1,7 @@
 #include "server_game_bridge.h"
 
 #include "qcommon/info.h"
+#include "qcommon/net_text.h"
 #include "qcommon/q_cvar.h"
 #include "qcommon/q_string.h"
 #include "qcommon/qcommon_runtime_types.h"
@@ -48,9 +49,28 @@ void SV_GameSendServerCommand(int32_t clientNum, qboolean reliable,
     }
 }
 
-void SV_GameDropClient(int32_t clientNum, const char *reason)
+/* NOT_FROM_ORIGINAL_SOURCE: t1x connectionlessPacketToClient port. Sends
+ * an out-of-band packet to one client's last known address. Bounds and
+ * connection state are validated here so script cannot spray arbitrary
+ * addresses; bots and stale slots are skipped by the state gate. */
+void SV_GameConnectionlessPacketToClient(int32_t clientNum,
+                                         const char *command)
 {
-    if (clientNum >= 0 && clientNum < sv_maxclients->integer) {
+    if (clientNum < 0 || clientNum >= sv_maxclients->integer) {
+        return;
+    }
+
+    client_t *const client = &svs.clients[clientNum];
+    if (client->state < CS_CONNECTED) {
+        return;
+    }
+
+    NET_OutOfBandPrint(NS_SERVER, client->netchan.remoteAddress, "%s",
+                       command);
+}
+
+void SV_GameDropClient(int32_t clientNum, const char *reason)
+{    if (clientNum >= 0 && clientNum < sv_maxclients->integer) {
         SV_DropClient(&svs.clients[clientNum], reason);
     }
 }

@@ -930,6 +930,13 @@ void trap_SendServerCommand(int clientNum, int reliable, const char *command)
     TrapCall(SYSCALL_SEND_SERVER_COMMAND, clientNum, reliable, command);
 }
 
+// NOT_FROM_ORIGINAL_SOURCE
+void trap_SendConnectionlessPacket(int clientNum, const char *command)
+{
+    TrapCall(SYSCALL_SEND_CONNECTIONLESS_PACKET, clientNum, command);
+}
+
+
 /* Original trap veneer; host callback adaptation is documented above. */
 /* VERIFIED_DECOMPILER(0x28654, 28654_trap_SendConsoleCommand.c, VERIFY-SYSCALL-VENEERS-CVARCONFIG-2026-06-17): DATAFLOW_VERIFIED - PLT thunk checked; body 83c9d_trap_SendConsoleCommand.c passes syscall 23, executionTime, and text. */
 void trap_SendConsoleCommand(int executionTime, const char *text)
