@@ -26,6 +26,7 @@ extern serverStatic_t svs;
 extern vm_t *sv_gameVM;
 extern cvar_t *sv_running;
 extern cvar_t *sv_maxclients;
+extern cvar_t *sv_botReconnectMode;
 extern cvar_t *g_gametype;
 extern cvar_t *sv_mapname;
 extern cvar_t *sv_mapRotationCurrent;
@@ -241,6 +242,30 @@ void SV_MapRestart_f(void)
         client_t *const client = &svs.clients[clientNum];
         if (client->state < CS_CONNECTED) {
             continue;
+        }
+
+        if (client->isTestClient && sv_botReconnectMode->integer != 0) {
+            if (sv_botReconnectMode->integer == 1) {
+                SV_DropClient(client, "EXE_DISCONNECTED");
+                continue;
+            } else if (sv_botReconnectMode->integer == 2) {
+                usercmd_t ucmd;
+                const char *const botReject = (const char *)VM_Call(
+                    sv_gameVM, GAME_CLIENT_CONNECT,
+                    clientNum, client->scriptId,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                if (botReject != NULL) {
+                    SV_DropClient(client, botReject);
+                    Com_Printf("SV_MapRestart_f: dropped client %i - denied!\n",
+                               clientNum);
+                } else {
+                    client->state = CS_CONNECTED;
+                    SV_SendClientGameState(client);
+                    memset(&ucmd, 0, sizeof(ucmd));
+                    SV_ClientEnterWorld(client, &ucmd);
+                }
+                continue;
+            }
         }
 
         SV_AddServerCommand(client, qtrue,

@@ -26,6 +26,7 @@
 #include "qcommon/vm_runtime.h"
 #include "animation/xanim.h"
 #include "animation/xmodel.h"
+#include "server/engine/server_client_gamestate.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,7 @@ extern char sv_gametypeNormalizeBuffer[MAX_QPATH];
 extern int32_t sv_serverId;
 extern int32_t sv_timeResidual;
 extern int32_t com_frameTime;
+extern cvar_t *sv_botReconnectMode;
 
 void Com_Error(errorParm_t code, const char *format, ...);
 void Com_Printf(const char *format, ...);
@@ -458,6 +460,31 @@ void SV_SpawnServer(const char *serverName)
          clientNum < sv_maxclients->integer;
          ++clientNum) {
         client_t *const client = &svs.clients[clientNum];
+
+        if (client->isTestClient && sv_botReconnectMode->integer != 0) {
+            if (sv_botReconnectMode->integer == 1) {
+                SV_DropClient(client, "EXE_DISCONNECTED");
+                continue;
+            } else if (sv_botReconnectMode->integer == 2) {
+                usercmd_t ucmd;
+                const intptr_t botReject =
+                    VM_Call(sv_gameVM, GAME_CLIENT_CONNECT,
+                            clientNum, client->scriptId,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                if (botReject != 0) {
+                    SV_DropClient(client, (const char *)botReject);
+                    Com_Printf("SV_SpawnServer: dropped client %i - denied!\n",
+                               clientNum);
+                } else {
+                    client->state = CS_CONNECTED;
+                    SV_SendClientGameState(client);
+                    memset(&ucmd, 0, sizeof(ucmd));
+                    SV_ClientEnterWorld(client, &ucmd);
+                }
+                continue;
+            }
+        }
+
         if (client->state >= CS_CONNECTED) {
             const intptr_t reject =
                 VM_Call(sv_gameVM, GAME_CLIENT_CONNECT,

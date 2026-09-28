@@ -312,6 +312,8 @@ cvar_t *sv_padPackets;
 int sv_reconnectSequence;
 cvar_t *sv_running;
 cvar_t *sv_showAverageBPS;
+// bot reconnect mode
+cvar_t *sv_botReconnectMode;
 serverStatic_t svs;
 char sys_delayedProcessCommand[SYS_DELAYED_PROCESS_COMMAND_SIZE];
 /*
