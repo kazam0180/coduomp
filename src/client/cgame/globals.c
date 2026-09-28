@@ -122,6 +122,7 @@ void cgame_compat_reset_module_load_state(void)
 
     cgame_compat_reset_presentation_state();
     coduo_crt_srand(CODUO_CRT_RAND_INITIAL_SEED);
+    cgame_compat_reset_movement_state();
 }
 
 /*

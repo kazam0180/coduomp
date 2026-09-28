@@ -41,13 +41,23 @@ void PM_WalkMove(void)
     playerState_t *ps = pm->ps;
 
     if ((ps->playerStateFlags & PMF_WALLJUMP) != 0) {
+        /* NOT_FROM_ORIGINAL_SOURCE: jump_slowdownEnable 0 keeps the post-jump
+         * window bookkeeping below but drops its velocity damping, so landing
+         * and stepping out of a jump no longer cost 35% or 50% of the speed.
+         * The PMF_WALLJUMP flag, pmTime window, and jumpOriginZ latch keep
+         * their recovered lifetimes in both modes. */
+        const qboolean dampJumpVelocity =
+            bg_jumpSlowdownEnable.integer != 0 ? qtrue : qfalse;
+
         if (ps->pmTime > PM_WALK_WALLJUMP_NEAR_TIME) {
             ps->playerStateFlags &= ~(uint32_t)PMF_WALLJUMP;
             ps->jumpOriginZ = 0.0f;
-            for (int32_t lane = 0; lane < 3; ++lane) {
-                ps->velocity[lane] = (float)(
-                    (long double)ps->velocity[lane] *
-                    (long double)PM_WALK_WALLJUMP_NEAR_DAMP);
+            if (dampJumpVelocity != qfalse) {
+                for (int32_t lane = 0; lane < 3; ++lane) {
+                    ps->velocity[lane] = (float)(
+                        (long double)ps->velocity[lane] *
+                        (long double)PM_WALK_WALLJUMP_NEAR_DAMP);
+                }
             }
         } else if (ps->pmTime == 0) {
             const qboolean nearGround =
@@ -61,10 +71,12 @@ void PM_WalkMove(void)
             ps->pmTime = nearGround != qfalse
                              ? PM_WALK_WALLJUMP_NEAR_TIME
                              : PM_WALK_WALLJUMP_AIR_TIME;
-            for (int32_t lane = 0; lane < 3; ++lane) {
-                ps->velocity[lane] = (float)(
-                    (long double)ps->velocity[lane] *
-                    (long double)damping);
+            if (dampJumpVelocity != qfalse) {
+                for (int32_t lane = 0; lane < 3; ++lane) {
+                    ps->velocity[lane] = (float)(
+                        (long double)ps->velocity[lane] *
+                        (long double)damping);
+                }
             }
         }
     }
