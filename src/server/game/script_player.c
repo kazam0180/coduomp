@@ -32,8 +32,6 @@
 #define AUTODEMO_STOP_COMMAND "D"
 #define AUTOSCREENSHOT_COMMAND "E"
 #define PLAYER_SWITCH_WEAPON_COMMAND "a %i"
-#define GIVEWEAPON_NO_SLOT_ERROR \
-    "Can not give player weapon without having an empty weapon slot\n"
 #define PLAYER_NO_WEAPON_NAME "none"
 #define PLAYER_PS_FLAG_PING 0x00040000u
 #define PLAYER_PING_DURATION_MS 4000
@@ -251,7 +249,7 @@ static void game_compat_script_player_add_button_pressed(uint32_t entityNum, uin
     Scr_AddInt((ent->client->currentButtons & mask) != 0);
 }
 
-/* VERIFIED_DECOMPILER(0x45ad0, 55ad0_PlayerCmd_giveWeapon.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entity validation, slot empty/stack guard, BG_GivePlayerWeapon, start-ammo delta, and Add_Ammo ownership flag checked. */
+/* VERIFIED_DECOMPILER(0x45ad0, 55ad0_PlayerCmd_giveWeapon.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entity validation, slot empty/stack guard, BG_GivePlayerWeapon, start-ammo delta, and Add_Ammo ownership flag checked. The slot guard is scoped to an unowned weapon on master; see the NOT_FROM_ORIGINAL_SOURCE note below. */
 void PlayerCmd_giveWeapon(uint32_t entityNum)
 {
     gentity_t *ent;
@@ -267,12 +265,25 @@ void PlayerCmd_giveWeapon(uint32_t entityNum)
     int weapon = BG_GetWeaponIndexForName(Scr_GetString(0)) & 0xff;
     int alreadyOwned = Com_BitCheck(ent->client->ps.weaponBits, weapon);
 
-    if (BG_GetEmptySlotForWeapon(&ent->client->ps, weapon) == 0 &&
-        BG_GetStackSlotForWeapon(&ent->client->ps, weapon, 0) == 0) {
-        Scr_ParamError(0, GIVEWEAPON_NO_SLOT_ERROR);
-    }
+    /* NOT_FROM_ORIGINAL_SOURCE: the slot requirement only applies to a weapon
+     * the player does not hold yet. Already owning it needs no slot, so the
+     * guard used to reject a plain ammo top-up for an owned weapon once every
+     * slot was full, which aborted the calling script thread instead of
+     * replenishing. A full inventory for a weapon the player does not have is
+     * a script misuse, not a server fault, so it warns and returns undefined
+     * rather than raising a script error. */
+    if (alreadyOwned == 0) {
+        if (BG_GetEmptySlotForWeapon(&ent->client->ps, weapon) == 0 &&
+            BG_GetStackSlotForWeapon(&ent->client->ps, weapon, 0) == 0) {
+            Com_Printf("giveweapon: player %i has no free weapon slot for '%s',"
+                       " not giving it\n",
+                       (int)entityNum, Scr_GetString(0));
+            Scr_AddUndefined();
+            return;
+        }
 
-    BG_GivePlayerWeapon(&ent->client->ps, weapon);
+        BG_GivePlayerWeapon(&ent->client->ps, weapon);
+    }
 
     const weaponInfo_t *weaponInfo = BG_GetInfoForWeapon(weapon);
     int ammoIndex = weaponInfo->ammoIndex;
@@ -375,7 +386,12 @@ void PlayerCmd_hasWeapon(uint32_t entityNum)
     Scr_AddBool(Com_BitCheck(ent->client->ps.weaponBits, weapon) != 0);
 }
 
-/* VERIFIED_DECOMPILER(0x46027, 56027_PlayerCmd_switchToWeapon.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; ownership branch, reliable switch command, and bool return checked. */
+/* NOT_FROM_ORIGINAL_SOURCE: bot weapon-request path, defined with the other
+ * bot input helpers. Declared here so the name-based switch method can reach
+ * it; see PlayerCmd_switchToWeapon for why a bot needs it. */
+static qboolean BotInput_SetWeaponIfBot(int32_t clientNum, int32_t weapon);
+
+/* VERIFIED_DECOMPILER(0x46027, 56027_PlayerCmd_switchToWeapon.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; ownership branch, reliable switch command, and bool return checked. The bot branch is a master-only addition; see below. */
 void PlayerCmd_switchToWeapon(uint32_t entityNum)
 {
     gentity_t *ent;
@@ -392,6 +408,25 @@ void PlayerCmd_switchToWeapon(uint32_t entityNum)
 
     if (Com_BitCheck(ent->client->ps.weaponBits, weapon) == 0) {
         Scr_AddBool(0);
+        return;
+    }
+
+    /* NOT_FROM_ORIGINAL_SOURCE: a bot has no client to receive the switch
+     * command, so sending it equips nothing while still reporting success. Drive
+     * the bot's input state instead, which reaches pm->command.weapon, the field
+     * the weapon-change state machine actually reads. The engine re-issues the
+     * request from that state every frame, so a switch asked for while the bot
+     * holds a ladder completes by itself once the contact clears, instead of
+     * needing a bare currentWeapon write that the next frame undoes.
+     *
+     * Two consequences to keep in mind. A weapon index of 0 cannot be
+     * requested, because the engine ignores a zero botWeapon and keeps the
+     * current weapon, so this cannot holster to fists. And the request is
+     * sticky: it holds until script asks for a different weapon, which is what
+     * lets a deferred ladder switch land, and which means callers must state
+     * the weapon they want rather than assume one-shot behaviour. */
+    if (BotInput_SetWeaponIfBot((int32_t)entityNum, weapon)) {
+        Scr_AddBool(1);
         return;
     }
 
@@ -1830,6 +1865,303 @@ void PlayerCmd_ClientAutoScreenshot(uint32_t entityNum)
         AUTOSCREENSHOT_COMMAND);
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: t1x bot-control port. Shadow of the
+ * engine-side per-bot input state; each method below updates its fields
+ * and pushes the full state through trap_SetBotInput. Full stick
+ * deflection matches the reference KEY_MASK_* value of 127. */
+#define BOT_INPUT_FULL_MOVE 127
+
+typedef struct botScriptInput_s {
+    int32_t buttons;
+    int32_t wbuttons;
+    int32_t weapon;
+    int32_t forwardMove;
+    int32_t rightMove;
+    int32_t upMove;
+} botScriptInput_t;
+
+static botScriptInput_t botScriptInputs[MAX_CLIENTS];
+
+/* NOT_FROM_ORIGINAL_SOURCE: hands one bot's shadow state to the engine and
+ * reports whether it took it. A refused push means the target is not a test
+ * client; the engine returns before writing anything in that case, so a caller
+ * may use the refusal as a side-effect-free "is this a bot" test. */
+static qboolean BotInput_TryPush(int32_t clientNum)
+{
+    const botScriptInput_t *const input = &botScriptInputs[clientNum];
+
+    return trap_SetBotInput(clientNum, input->buttons, input->wbuttons,
+                            input->weapon, input->forwardMove, input->rightMove,
+                            input->upMove) != 0;
+}
+
+/* Pushes one bot's shadow state; prints and returns qfalse when the engine
+ * refused it, i.e. the target is not a test client. */
+static qboolean BotInput_Push(int32_t clientNum)
+{
+    if (BotInput_TryPush(clientNum) == qfalse) {
+        Com_Printf("bot control method: player %i is not a bot\n",
+                   clientNum);
+        return qfalse;
+    }
+    return qtrue;
+}
+
+/* NOT_FROM_ORIGINAL_SOURCE: records the weapon the bot asks for and pushes it,
+ * quietly. The engine copies this into usercmd.weapon on every frame it builds
+ * a bot move, so the request is re-issued continuously rather than consumed
+ * once, which is what lets a switch asked for mid-ladder land after the ladder
+ * contact clears. Returns false without a diagnostic when the target is not a
+ * bot, so the name-based switch method can fall back to the client command. */
+static qboolean BotInput_SetWeaponIfBot(int32_t clientNum, int32_t weapon)
+{
+    botScriptInputs[clientNum].weapon = weapon & 0xff;
+
+    return BotInput_TryPush(clientNum);
+}
+
+static gentity_t *BotInput_PlayerEntity(uint32_t entityNum)
+{
+    gentity_t *ent;
+
+    if (entityNum > ENTITYNUM_NONE) {
+        Scr_Error(va("%i is not a valid entity number", (int)entityNum));
+    }
+
+    ent = &g_entities[entityNum];
+    if (ent->client == NULL) {
+        Scr_Error(va("entity %i is not a player", (int)entityNum));
+    }
+
+    return ent;
+}
+
+void PlayerCmd_BotSetWalkValues(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+    botScriptInput_t *input;
+
+    if (Scr_GetNumParam() != 2 ||
+        Scr_GetType(0) != SCRIPT_VAR_INT ||
+        Scr_GetType(1) != SCRIPT_VAR_INT) {
+        Com_Printf("setwalkvalues: USAGE: self setwalkvalues <forward> <right>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    input = &botScriptInputs[ent->s.number];
+    input->forwardMove = Scr_GetInt(0);
+    input->rightMove = Scr_GetInt(1);
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
+
+void PlayerCmd_BotSetWalkDirection(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+    const char *direction;
+    botScriptInput_t *input;
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_STRING) {
+        Com_Printf("setwalkdir: USAGE: self setwalkdir <none|forward|back|right|left>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    direction = Scr_GetString(0);
+    input = &botScriptInputs[ent->s.number];
+    if (Q_stricmp(direction, "none") == 0) {
+        input->forwardMove = 0;
+        input->rightMove = 0;
+    } else if (Q_stricmp(direction, "forward") == 0) {
+        input->forwardMove = BOT_INPUT_FULL_MOVE;
+    } else if (Q_stricmp(direction, "back") == 0) {
+        input->forwardMove = -BOT_INPUT_FULL_MOVE;
+    } else if (Q_stricmp(direction, "right") == 0) {
+        input->rightMove = BOT_INPUT_FULL_MOVE;
+    } else if (Q_stricmp(direction, "left") == 0) {
+        input->rightMove = -BOT_INPUT_FULL_MOVE;
+    } else {
+        Com_Printf("setwalkdir: invalid argument '%s'. Valid arguments are: 'none' 'forward' 'back' 'right' 'left'\n",
+                   direction);
+        Scr_AddUndefined();
+        return;
+    }
+
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
+
+void PlayerCmd_BotSetStance(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+    const char *stance;
+    botScriptInput_t *input;
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_STRING) {
+        Com_Printf("setbotstance: USAGE: self setbotstance <stand|crouch|prone|jump>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    stance = Scr_GetString(0);
+    input = &botScriptInputs[ent->s.number];
+    if (Q_stricmp(stance, "stand") == 0) {
+        input->upMove = 0;
+        input->wbuttons &= ~(PM_WBUTTON_PRONE | PM_WBUTTON_CROUCH);
+    } else if (Q_stricmp(stance, "crouch") == 0) {
+        input->wbuttons |= PM_WBUTTON_CROUCH;
+    } else if (Q_stricmp(stance, "prone") == 0) {
+        input->wbuttons |= PM_WBUTTON_PRONE;
+    } else if (Q_stricmp(stance, "jump") == 0) {
+        input->upMove = BOT_INPUT_FULL_MOVE;
+    } else {
+        Com_Printf("setbotstance: invalid argument '%s'. Valid arguments are: 'stand' 'crouch' 'prone' 'jump'\n",
+                   stance);
+        Scr_AddUndefined();
+        return;
+    }
+
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
+
+void PlayerCmd_BotSetLean(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+    const char *lean;
+    botScriptInput_t *input;
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_STRING) {
+        Com_Printf("setlean: USAGE: self setlean <none|left|right>\n");
+        Scr_AddUndefined();
+        return;
+    }
+
+    lean = Scr_GetString(0);
+    input = &botScriptInputs[ent->s.number];
+    if (Q_stricmp(lean, "none") == 0) {
+        input->wbuttons &= ~(PM_WBUTTON_LEAN_LEFT | PM_WBUTTON_LEAN_RIGHT);
+    } else if (Q_stricmp(lean, "left") == 0) {
+        input->wbuttons |= PM_WBUTTON_LEAN_LEFT;
+    } else if (Q_stricmp(lean, "right") == 0) {
+        input->wbuttons |= PM_WBUTTON_LEAN_RIGHT;
+    } else {
+        Com_Printf("setlean: invalid argument '%s'. Valid arguments are: 'none' 'left' 'right'\n",
+                   lean);
+        Scr_AddUndefined();
+        return;
+    }
+
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
+
+static void PlayerCmd_BotSetButton(uint32_t entityNum, const char *usage,
+                                   int32_t mask, qboolean weaponButton)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+    botScriptInput_t *input;
+    int32_t enable;
+
+    if (Scr_GetNumParam() != 1 ||
+        Scr_GetType(0) != SCRIPT_VAR_INT) {
+        Com_Printf("%s", usage);
+        Scr_AddUndefined();
+        return;
+    }
+
+    enable = Scr_GetInt(0);
+    input = &botScriptInputs[ent->s.number];
+    if (weaponButton != qfalse) {
+        if (enable != 0) {
+            input->wbuttons |= mask;
+        } else {
+            input->wbuttons &= ~mask;
+        }
+    } else {
+        if (enable != 0) {
+            input->buttons |= mask;
+        } else {
+            input->buttons &= ~mask;
+        }
+    }
+
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
+
+void PlayerCmd_BotSetAim(uint32_t entityNum)
+{
+    PlayerCmd_BotSetButton(entityNum,
+                           "setaim: USAGE: self setaim <0|1>\n",
+                           PM_BUTTON_ADS, qfalse);
+}
+
+void PlayerCmd_BotFireWeapon(uint32_t entityNum)
+{
+    PlayerCmd_BotSetButton(entityNum,
+                           "fireweapon: USAGE: self fireweapon <0|1>\n",
+                           PM_BUTTON_FIRE, qfalse);
+}
+
+void PlayerCmd_BotMeleeWeapon(uint32_t entityNum)
+{
+    PlayerCmd_BotSetButton(entityNum,
+                           "meleeweapon: USAGE: self meleeweapon <0|1>\n",
+                           PM_BUTTON_MELEE, qfalse);
+}
+
+void PlayerCmd_BotReloadWeapon(uint32_t entityNum)
+{
+    PlayerCmd_BotSetButton(entityNum,
+                           "reloadweapon: USAGE: self reloadweapon <0|1>\n",
+                           PM_WBUTTON_RELOAD, qtrue);
+}
+
+/* NOT_FROM_ORIGINAL_SOURCE: drops a pending bot weapon request.
+ *
+ * A weapon request is sticky by design: the engine copies the requested id
+ * into usercmd.weapon on every frame it builds a bot move, which is what lets a
+ * switch asked for while the bot holds a ladder land once the contact clears.
+ * The cost is that the request never expires on its own, so a bot left asking
+ * for a spent launcher keeps asking after the ammunition runs out, and the
+ * request has to be cancelled by script.
+ *
+ * Clearing the field to zero is the cancellation the engine understands: it
+ * ignores a zero requested weapon and falls back to the player's current weapon,
+ * so the bot keeps holding what it has and simply stops asking for anything
+ * else. Zero cannot be requested in the first place, so nothing else is lost. */
+void PlayerCmd_BotClearWeaponSwitch(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+
+    botScriptInputs[ent->s.number].weapon = 0;
+
+    if (BotInput_Push(ent->s.number) == qfalse) {
+        Scr_AddUndefined();
+        return;
+    }
+    Scr_AddBool(qtrue);
+}
 
 // NOT_FROM_ORIGINAL_SOURCE
 void PlayerCmd_DropClient(uint32_t entityNum)
@@ -1991,6 +2323,15 @@ static const script_method_t playerMethods[] = {
     {"connectionlesspackettoclient", PlayerCmd_ConnectionlessPacketToClient},
     {"getping", PlayerCmd_GetPing},
     {"dropclient", PlayerCmd_DropClient},
+    {"botsetwalkvalues", PlayerCmd_BotSetWalkValues},
+    {"botsetwalkdir", PlayerCmd_BotSetWalkDirection},
+    {"botsetstance", PlayerCmd_BotSetStance},
+    {"botsetlean", PlayerCmd_BotSetLean},
+    {"botsetaim", PlayerCmd_BotSetAim},
+    {"botfireweapon", PlayerCmd_BotFireWeapon},
+    {"botmeleeweapon", PlayerCmd_BotMeleeWeapon},
+    {"botreloadweapon", PlayerCmd_BotReloadWeapon},
+    {"botclearweaponswitch", PlayerCmd_BotClearWeaponSwitch},
 };
 
 /* VERIFIED_DECOMPILER(0x49ed6, 59ed6_Player_GetMethod.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entry-time requested-name capture, 60-entry table lookup, strcmp loop, canonical name writeback, callback return, and null miss checked. */

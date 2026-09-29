@@ -936,6 +936,14 @@ void trap_SendConnectionlessPacket(int clientNum, const char *command)
     TrapCall(SYSCALL_SEND_CONNECTIONLESS_PACKET, clientNum, command);
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: t1x bot-control port. Pushes one bot's full
+ * script-driven input state; returns nonzero when the engine accepted it. */
+int trap_SetBotInput(int clientNum, int buttons, int wbuttons, int weapon,
+                     int forwardMove, int rightMove, int upMove)
+{
+    return (int)TrapCall(SYSCALL_BOT_SET_INPUT, clientNum, buttons, wbuttons,
+                         weapon, forwardMove, rightMove, upMove);
+}
 
 /* Original trap veneer; host callback adaptation is documented above. */
 /* VERIFIED_DECOMPILER(0x28654, 28654_trap_SendConsoleCommand.c, VERIFY-SYSCALL-VENEERS-CVARCONFIG-2026-06-17): DATAFLOW_VERIFIED - PLT thunk checked; body 83c9d_trap_SendConsoleCommand.c passes syscall 23, executionTime, and text. */

@@ -11,6 +11,9 @@ extern "C" {
 
 void SV_RunFrame(void);
 void SV_BotUserMove(client_t *client);
+qboolean SV_SetBotInput(int32_t clientNum, int32_t buttons, int32_t wbuttons,
+                        int32_t weapon, int32_t forwardMove,
+                        int32_t rightMove, int32_t upMove);
 void SV_RunBotFrame(void);
 void SV_Frame(int32_t msec);
 

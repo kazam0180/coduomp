@@ -2,6 +2,7 @@
 
 #include "qcommon/com_frame.h"
 #include "qcommon/com_lifecycle.h"
+#include "qcommon/qcommon_limits.h"
 #include "animation/dobj.h"
 #include "qcommon/game_module_abi_types.h"
 #include "qcommon/game_state_types.h"
@@ -58,6 +59,9 @@ extern vm_t *sv_gameVM;
 extern cvar_t *sv_maxclients;
 extern cvar_t *sv_running;
 extern cvar_t *sv_fps;
+extern cvar_t *sv_botHook;
+
+void Com_Printf(const char *format, ...);
 extern cvar_t *sv_killserver;
 extern cvar_t *sv_mapname;
 extern cvar_t *com_speeds;
@@ -106,6 +110,66 @@ void SV_RunFrame(void)
     Hunk_ClearTempMemory();
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: t1x bot-control port. Engine-side per-bot
+ * input state written by script through SV_SetBotInput and consumed by
+ * SV_BotUserMove while sv_botHook is nonzero. Zero-initialized like the
+ * reference, so untouched bots stand still under script control. */
+typedef struct botInputState_s {
+    int32_t buttons;
+    int32_t wbuttons;
+    int32_t weapon;
+    int8_t forwardMove;
+    int8_t rightMove;
+    int8_t upMove;
+} botInputState_t;
+
+static botInputState_t botInputStates[MAX_CLIENTS];
+
+/* TEMPDEBUG: throttled per-bot diagnostics for the stuck-bot investigation.
+ * Remove once root-caused. */
+/* static int32_t botDebugPrintTime[MAX_CLIENTS]; */
+
+static int8_t BotInput_ClampMove(int32_t move)
+{
+    if (move < INT8_MIN) {
+        return INT8_MIN;
+    }
+    if (move > INT8_MAX) {
+        return INT8_MAX;
+    }
+    return (int8_t)move;
+}
+
+qboolean SV_SetBotInput(int32_t clientNum, int32_t buttons, int32_t wbuttons,
+                        int32_t weapon, int32_t forwardMove,
+                        int32_t rightMove, int32_t upMove)
+{
+    client_t *client;
+
+    if (clientNum < 0 || clientNum >= sv_maxclients->integer) {
+        return qfalse;
+    }
+    client = &svs.clients[clientNum];
+    if (client->isTestClient == qfalse) {
+        return qfalse;
+    }
+
+    botInputState_t *const state = &botInputStates[clientNum];
+    state->buttons = buttons & 0xff;
+    state->wbuttons = wbuttons & 0xff;
+    state->weapon = weapon & 0xff;
+    state->forwardMove = BotInput_ClampMove(forwardMove);
+    state->rightMove = BotInput_ClampMove(rightMove);
+    state->upMove = BotInput_ClampMove(upMove);
+    /* TEMPDEBUG: pushes are rare; log every one for the investigation. */
+    /* Com_Printf("BOTDBG push client=%i test=%i f=%i r=%i u=%i b=%02x wb=%02x w=%i\n",
+                  clientNum, client->isTestClient != qfalse,
+                  state->forwardMove, state->rightMove, state->upMove,
+                  state->buttons & 0xff, state->wbuttons & 0xff,
+                  state->weapon); */
+    return qtrue;
+}
+
 void SV_BotUserMove(client_t *client)
 {
     if (client->gentity == NULL) {
@@ -119,16 +183,38 @@ void SV_BotUserMove(client_t *client)
     command.weapon = (uint8_t)playerState->currentWeapon;
 
     if (SV_GetClientArchiveTime(clientNum) == 0) {
-        if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
-            command.buttons |= SERVER_BOT_BUTTON_ATTACK;
-        }
-        if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
-            command.buttons |= SERVER_BOT_BUTTON_USE;
-        }
-        if (coduo_server_rand_unit() < sv_botForwardThreshold) {
-            command.forwardmove = SERVER_BOT_FULL_FORWARD_MOVE;
-        } else if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
-            command.forwardmove = SERVER_BOT_FULL_BACK_MOVE;
+        if (client->isTestClient != qfalse && sv_botHook->integer != 0) {
+            const botInputState_t *const input = &botInputStates[clientNum];
+            if (input->weapon != 0) {
+                command.weapon = (uint8_t)input->weapon;
+            }
+            command.buttons = (uint8_t)input->buttons;
+            command.wbuttons = (uint8_t)input->wbuttons;
+            command.forwardmove = input->forwardMove;
+            command.rightmove = input->rightMove;
+            command.upmove = input->upMove;
+            memcpy(command.angles, client->lastUsercmd.angles,
+                   sizeof(command.angles));
+            /* TEMPDEBUG: 5s throttle per bot for the investigation. */
+            /* if (svs.realTime - botDebugPrintTime[clientNum] >= 5000) {
+                   botDebugPrintTime[clientNum] = svs.realTime;
+                   Com_Printf("BOTDBG move client=%i state=%i arch=%i f=%i b=%02x\n",
+                              clientNum, client->state,
+                              SV_GetClientArchiveTime(clientNum),
+                              command.forwardmove, command.buttons);
+               } */
+        } else {
+            if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
+                command.buttons |= SERVER_BOT_BUTTON_ATTACK;
+            }
+            if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
+                command.buttons |= SERVER_BOT_BUTTON_USE;
+            }
+            if (coduo_server_rand_unit() < sv_botForwardThreshold) {
+                command.forwardmove = SERVER_BOT_FULL_FORWARD_MOVE;
+            } else if (coduo_server_rand_unit() < sv_botAttackOrUseThreshold) {
+                command.forwardmove = SERVER_BOT_FULL_BACK_MOVE;
+            }
         }
     }
 

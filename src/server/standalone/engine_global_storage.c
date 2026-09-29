@@ -314,6 +314,8 @@ cvar_t *sv_running;
 cvar_t *sv_showAverageBPS;
 // bot reconnect mode
 cvar_t *sv_botReconnectMode;
+// script-driven bot input (t1x bot-control port)
+cvar_t *sv_botHook;
 serverStatic_t svs;
 char sys_delayedProcessCommand[SYS_DELAYED_PROCESS_COMMAND_SIZE];
 /*

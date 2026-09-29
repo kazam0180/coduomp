@@ -1,5 +1,6 @@
 #include "server_game_syscalls.h"
 
+#include "server_frame.h"
 #include "collision/collision_area.h"
 #include "compat/coduo_x87emu.h"
 #include "qcommon/q_bits.h"
@@ -144,6 +145,10 @@ intptr_t SV_GameSystemCalls(intptr_t *arguments)
     case SYSCALL_SEND_CONNECTIONLESS_PACKET:
         SV_GameConnectionlessPacketToClient(SV_INT(1), SV_STRING(2));
         return 0;
+    /* Master extension for SYSCALL_BOT_SET_INPUT. */
+    case SYSCALL_BOT_SET_INPUT:
+        return SV_SetBotInput(SV_INT(1), SV_INT(2), SV_INT(3), SV_INT(4),
+                              SV_INT(5), SV_INT(6), SV_INT(7));
     case SYSCALL_SET_CONFIGSTRING:
         SV_SetConfigstring(SV_INT(1), SV_STRING(2));
         return 0;

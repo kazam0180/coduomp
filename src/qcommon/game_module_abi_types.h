@@ -187,6 +187,7 @@ typedef enum game_syscall_id_e {
     /* Master extension: the stock ABI ends at 140. Appended IDs must never
      * renumber the stock range above. */
     SYSCALL_SEND_CONNECTIONLESS_PACKET = 141,
+    SYSCALL_BOT_SET_INPUT = 142,
 
     SYSCALL_MEMSET = 200,
     SYSCALL_MEMCPY = 201,

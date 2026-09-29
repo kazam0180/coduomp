@@ -190,6 +190,7 @@ extern int trap_GetClientPing(int clientNum);
 /* Server Commands */
 extern void trap_SendServerCommand(int clientNum, int reliable, const char *command);
 extern void trap_SendConnectionlessPacket(int clientNum, const char *command);
+extern int trap_SetBotInput(int clientNum, int buttons, int wbuttons, int weapon, int forwardMove, int rightMove, int upMove);
 extern void trap_SendConsoleCommand(int executionTime, const char *text);
 extern void trap_DropClient(int clientNum, const char *reason);
 extern gentity_t *trap_AddTestClient(void);
