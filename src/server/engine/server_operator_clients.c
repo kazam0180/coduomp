@@ -246,6 +246,28 @@ void SV_DropNum_f(void)
     (void)SV_KickClient_f(NULL, 0);
 }
 
+// NOT_FROM_ORIGINAL_SOURCE
+void SV_KickBots_f(void)
+{
+    if (sv_running->integer == 0) {
+        Com_Printf("Server is not running.\n");
+        return;
+    }
+
+    int32_t kickedCount = 0;
+    for (int32_t clientNum = 0;
+         clientNum < sv_maxclients->integer;
+         ++clientNum) {
+        client_t *const client = &svs.clients[clientNum];
+        if (client->state != CS_FREE && client->isTestClient != qfalse) {
+            (void)SV_KickClient(client, NULL, 0);
+            ++kickedCount;
+        }
+    }
+    Com_Printf("kicked %i bot%s\n", kickedCount,
+               kickedCount == 1 ? "" : "s");
+}
+
 void SV_TempBanNum_f(void)
 {
     char name[SERVER_PLAYER_NAME_BUFFER_SIZE];

@@ -290,6 +290,7 @@ void SV_AddOperatorCommands(void)
     Cmd_AddCommand("tempBanClient", SV_TempBanNum_f);
     Cmd_AddCommand("unbanUser", SV_Unban_f);
     Cmd_AddCommand("clientkick", SV_DropNum_f);
+    Cmd_AddCommand("kickbots", SV_KickBots_f);
     Cmd_AddCommand("status", SV_Status_f);
     Cmd_AddCommand("serverinfo", SV_Serverinfo_f);
     Cmd_AddCommand("systeminfo", SV_Systeminfo_f);
