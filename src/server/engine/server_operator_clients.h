@@ -21,6 +21,7 @@ void SV_BanNum_f(void);
 void SV_Unban_f(void);
 void SV_Drop_f(void);
 void SV_DropNum_f(void);
+void SV_KickBots_f(void);
 void SV_TempBanNum_f(void);
 
 #ifdef __cplusplus
