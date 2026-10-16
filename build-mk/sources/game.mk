@@ -26,6 +26,8 @@ GAME_C_SOURCES := \
 	src/server/game/movement.c \
 	src/server/game/player_die.c \
 	src/server/game/script_builtins.c \
+	src/server/game/script_bot_path.c \
+	src/server/game/script_bot_path_builtins.c \
 	src/server/game/script_cvar.c \
 	src/server/game/script_entity_methods.c \
 	src/server/game/script_object.c \
