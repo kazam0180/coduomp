@@ -12,6 +12,7 @@
 #include "recovered_game.h"
 #include "game_globals.h"
 #include "scr_vm.h"
+#include "script_bot_path.h"
 #include "g_syscalls.h"
 #include "game_functions.h"
 #include "compat/coduo_x87emu.h" /* defines EMULATE_X87; x87 shim when it is 1 */
@@ -2257,6 +2258,25 @@ void PlayerCmd_ConnectionlessPacketToClient(uint32_t entityNum)
     Scr_AddBool(qtrue);
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: self getvelocity() -> vec3
+ *
+ * The player's own movement vector in units per second, as pmove last wrote
+ * it. Script has no other way to read motion: sampling self.origin between
+ * waits quantises the result to the tick interval and loses anything that
+ * happens inside one tick.
+ *
+ * This is what tells a bot that geometry is in its way. Speed near zero means
+ * it is pressed flat against something and going nowhere; a velocity whose
+ * direction has swung away from the waypoint it is walking toward means it is
+ * sliding along a surface. A bot climbing a ramp keeps its velocity pointing up
+ * the ramp at the target, so neither reading fires on ordinary terrain. */
+void PlayerCmd_GetVelocity(uint32_t entityNum)
+{
+    gentity_t *ent = BotInput_PlayerEntity(entityNum);
+
+    Scr_AddVector(ent->client->ps.velocity);
+}
+
 static const script_method_t playerMethods[] = {
     {"giveweapon", PlayerCmd_giveWeapon},
     {"takeweapon", PlayerCmd_takeWeapon},
@@ -2332,6 +2352,8 @@ static const script_method_t playerMethods[] = {
     {"botmeleeweapon", PlayerCmd_BotMeleeWeapon},
     {"botreloadweapon", PlayerCmd_BotReloadWeapon},
     {"botclearweaponswitch", PlayerCmd_BotClearWeaponSwitch},
+    {"getvelocity", PlayerCmd_GetVelocity},
+    {"get_paths_to_waypoint", PlayerCmd_GetPathsToWaypoint},
 };
 
 /* VERIFIED_DECOMPILER(0x49ed6, 59ed6_Player_GetMethod.c, VERIFY-SCRIPT-PLAYER-CMDS-2026-06-17): DATAFLOW_VERIFIED; entry-time requested-name capture, 60-entry table lookup, strcmp loop, canonical name writeback, callback return, and null miss checked. */

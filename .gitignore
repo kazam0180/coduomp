@@ -17,3 +17,9 @@ __pycache__/
 *~
 *.tmp
 compile_commands.json
+
+/dist/
+/pkg/
+/AppDir/
+*.AppImage
+*.AppImage.zsync

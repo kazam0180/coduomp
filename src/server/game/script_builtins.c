@@ -22,6 +22,7 @@
 #include "game_globals.h"
 #include "level_locals.h"
 #include "scr_vm.h"
+#include "script_bot_path.h"
 #include "g_syscalls.h"
 #include "bg_state.h"
 #include "compat/coduo_x87emu.h" /* defines EMULATE_X87; x87 shim when it is 1 */
@@ -4622,7 +4623,7 @@ void script_func_ambientstop(void)
                                  (uint32_t)level.time)));
 }
 
-#define SCRIPT_FUNCTION_COUNT 124u
+#define SCRIPT_FUNCTION_COUNT 128u
 #define SCRIPTBUILTIN_METHOD_COUNT 56u
 #define SCRIPTENT_METHOD_COUNT 12u
 
@@ -4924,6 +4925,10 @@ const script_function_t functions[SCRIPT_FUNCTION_COUNT] = {
     {"namefix", script_func_namefix, 0},
     {"sendcommandtoclient", script_func_sendcommandtoclient, 0},
     {"getweaponfiretype", script_func_getweaponfiretype, 0},
+    {"waypoint_graph_begin", script_func_waypoint_graph_begin, 0},
+    {"waypoint_add", script_func_waypoint_add, 0},
+    {"waypoint_link", script_func_waypoint_link, 0},
+    {"waypoint_graph_end", script_func_waypoint_graph_end, 0},
 };
 
 typedef char script_functions_count_check[
@@ -5342,6 +5347,11 @@ void GScr_LoadLevelScript(void)
 {
     vmCvar_t mapname;
     char scriptName[MAX_QPATH];
+
+    /* The bot waypoint graph is pushed from script once per map load. Dropping
+     * it here as well means a map change that never reloads the script cannot
+     * leave the previous map's nodes reachable for search. */
+    coduomp_botpath_map_reset();
 
     trap_Cvar_Register(&mapname, LEVEL_MAPNAME_CVAR, emptyString,
                        LEVEL_MAPNAME_CVAR_FLAGS);

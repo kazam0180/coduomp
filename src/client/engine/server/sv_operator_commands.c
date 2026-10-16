@@ -56,6 +56,19 @@ cvar_t *sv_padPackets;          /* original 0x0491cd34 */
 cvar_t *sv_killserver;          /* original 0x0491ccf0 */
 cvar_t *sv_packet_info;         /* original 0x0491cd08 */
 cvar_t *sv_showAverageBPS;      /* original 0x0491cd28 */
+/* NOT_FROM_ORIGINAL_SOURCE: client-side definitions for the bot cvars owned
+ * by the shared server engine. The dedicated target defines these in
+ * src/server/standalone/engine_global_storage.c; the listen target links the
+ * same shared sources without that file, so they must be defined here or the
+ * client link fails with undefined references to sv_botPings,
+ * sv_botRandomPing, sv_botRandomPingJitter, sv_botNames, sv_botReconnectMode
+ * and sv_botHook. */
+cvar_t *sv_botRandomPing;
+cvar_t *sv_botPings;
+cvar_t *sv_botRandomPingJitter;
+cvar_t *sv_botNames;
+cvar_t *sv_botReconnectMode;
+cvar_t *sv_botHook;
 /* Original 0x005cef30..0x005cf097. The PE initializes only magic +0x000 and
  * loadPending +0x138; all module handles and callback slots begin zero. */
 serverPbState_t sv_pbServerState = {
