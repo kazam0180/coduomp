@@ -18,18 +18,7 @@
 #include "system_event.h"
 #include "system_info.h"
 #include "system_platform.h"
-#include "system_process_lock.h"
-#include "platform/hardware_profile.h"
 #include "ui/ui_module_loader.h"
-
-#include <setjmp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 
 enum {
     COM_CONFIGURE_CHECKSUM_MULTIPLIER = 31337,
@@ -87,55 +76,6 @@ static uint32_t Com_ConfigureChecksumValue(
  * This override is called only from the existing first-run recommendation
  * path; it is not a config migration and never rewrites an established
  * installation merely because the executable version changed. */
-static void coduomp_apply_apple_silicon_first_run_profile(void)
-{
-    static const struct {
-        const char *name;
-        const char *value;
-    } settings[] = {
-        { "com_maxfps", "250" },
-        { "r_mode", CODUOMP_APPLE_SILICON_RECOMMENDED_VIDEO_MODE },
-        { "r_fullscreen", "1" },
-        { "r_aspectMode", "0" },
-        { "r_picmip", "0" },
-        { "r_picmip2", "0" },
-        { "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR" },
-        { "r_texturebits", "32" },
-        { "r_colorbits", "32" },
-        { "r_depthbits", "24" },
-        { "r_stencilbits", "8" },
-        { "r_ext_compressed_textures", "0" },
-        { "r_finish", "0" },
-        { "r_vbo_stream_draw", "1" },
-        { "r_vbo_interleave", "1" },
-        { "r_vertexLight", "0" },
-        { "r_lodbias", "0" },
-        { "r_lodscale", "0" },
-        { "r_subdivisions", "4" },
-        { "r_dynamiclight", "1" },
-        { "r_dlightQuality", "1" },
-        { "r_flareOcclusionQuery", "1" },
-        { "cg_marks", "1" },
-        { "cg_brass", "1" },
-        { "cg_blood", "1" },
-        { "cg_shellshockblur", "1" },
-        { "cg_vehicletrails", "1" },
-        { "ai_corpseCount", "64" },
-        { "fx_cullscale", "1" },
-        { "fx_cullbias", "0" }
-    };
-
-    Com_Printf(
-        "Applying Apple Silicon first-run graphics/performance profile\n");
-    for (size_t index = 0;
-         index < sizeof(settings) / sizeof(settings[0]);
-         ++index) {
-        cvar_t *const cvar =
-            Cvar_Set2(settings[index].name, settings[index].value, qtrue);
-        cvar->flags |= CVAR_ARCHIVE;
-    }
-}
-
 /* NOT_FROM_ORIGINAL_SOURCE: distinguishes an explicit user preference from
  * the retail default_mp.cfg assignment.  Generated configs use seta, while
  * the token scan also recognizes equivalent hand-written set/direct forms. */
@@ -456,9 +396,6 @@ parsing_complete:
         cvar->flags |= CVAR_ARCHIVE;
     }
 
-    if (coduomp_is_apple_silicon() != qfalse)
-        coduomp_apply_apple_silicon_first_run_profile();
-
     Sys_ArchiveInfo((int32_t)checksum);
     if (restartSound != qfalse)
         Cbuf_AddText("snd_restart\n");
@@ -505,12 +442,6 @@ void Com_Init(char *commandLine)
      * server-cache directory is enumerated or mounted during normal startup. */
     coduomp_server_namespace_reset_for_startup();
     FS_InitFilesystem();
-#if defined(_WIN32)
-    const qboolean regenerateImproperQuitConfig =
-        Cvar_VariableIntegerValue("dedicated") == 0
-            ? coduomp_sys_check_improper_quit_config()
-            : qfalse;
-#endif
     Com_InitJournaling();
 
     /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): preserve an explicit
@@ -518,28 +449,15 @@ void Com_Init(char *commandLine)
      * downloads when the saved config and autoexec omit the setting. */
     allowDownloadConfigured =
         allowDownloadConfigured ||
-#if defined(_WIN32)
-        (regenerateImproperQuitConfig == qfalse &&
-         coduomp_config_sets_cvar(
-             "uoconfig_mp.cfg", "cl_allowDownload")) ||
-#else
         coduomp_config_sets_cvar("uoconfig_mp.cfg", "cl_allowDownload") ||
-#endif
         coduomp_config_sets_cvar("autoexec_mp.cfg", "cl_allowDownload");
 
     Cbuf_AddText("exec default_mp.cfg\n");
     Cbuf_AddText("exec language.cfg\n");
-#if defined(_WIN32)
-    if (regenerateImproperQuitConfig == qfalse)
-#endif
     Cbuf_AddText("exec uoconfig_mp.cfg\n");
     Cbuf_AddText("exec autoexec_mp.cfg\n");
     if (Com_SafeMode() != qfalse)
         Cbuf_AddText("exec safemode_mp.cfg\n");
-#if defined(_WIN32)
-    if (regenerateImproperQuitConfig != qfalse)
-        coduomp_sys_queue_improper_quit_language();
-#endif
     Cbuf_Execute();
 
     com_recommendedSet =
@@ -566,23 +484,13 @@ void Com_Init(char *commandLine)
     if (dedicated->integer != 0) {
         Sys_HideSplashWindow();
         Sys_ShowConsole(COM_CONSOLE_VISIBLE, qtrue);
-#if defined(_WIN32)
-        Sys_DeleteProcessLockFile();
-#endif
     }
 
     Com_InitHunkMemory();
     cvar_modifiedFlags &= ~(uint32_t)CVAR_ARCHIVE;
 
-    /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): use the high-rate
-     * frame-rate default only on Apple-Silicon hosts. This is the
-     * missing-cvar path; the first-run recommendation profile above supplies
-     * the same value after retail configure_mp.cfg sets 85. Intel Macs and
-     * every non-Apple-Silicon target retain the retail default. */
     com_maxfps = Cvar_Get(
-        "com_maxfps",
-        coduomp_is_apple_silicon() != qfalse ? "250" : "85",
-        CVAR_ARCHIVE);
+        "com_maxfps", "85", CVAR_ARCHIVE);
     com_developer =
         Cvar_Get("developer", "0", CVAR_TEMP);
     com_developerScript =
@@ -667,9 +575,5 @@ void Com_Init(char *commandLine)
 
     (void)Cvar_Set2("com_statmon", "0", qtrue);
     com_configAutowriteEnabled = qtrue;
-#if defined(_WIN32)
-    if (regenerateImproperQuitConfig != qfalse)
-        cvar_modifiedFlags |= CVAR_ARCHIVE;
-#endif
     Com_Printf("--- Common Initialization Complete ---\n");
 }

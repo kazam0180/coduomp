@@ -1,12 +1,7 @@
 #include <string.h>
-#if defined(_WIN32)
-#include <conio.h>
-#include <stdio.h>
-#else
 #include <sys/select.h>
 #include <sys/time.h>
 #include <unistd.h>
-#endif
 
 #include "core_runtime_private.h"
 
@@ -33,76 +28,6 @@ enum {
 
 char *Sys_ConsoleInput(void)
 {
-#if defined(_WIN32)
-    /*
-     * NOT_FROM_ORIGINAL_SOURCE: MinGW has no POSIX nonblocking tty read;
-     * retain the recovered line/history buffers while polling the Win32
-     * console through the C runtime.
-     */
-    if (dedicated == NULL || dedicated->value == 0.0f ||
-        sys_stdinActive == SYS_STDIN_INACTIVE || _kbhit() == 0) {
-        return NULL;
-    }
-
-    int input = _getch();
-    if (input == 0 || input == 0xe0) {
-        int extendedInput = _getch();
-        console_input_field_t *historyLine = NULL;
-
-        if (extendedInput == 72) {
-            historyLine = Sys_TTYPreviousHistoryLine();
-        } else if (extendedInput == 80) {
-            historyLine = Sys_TTYNextHistoryLine();
-        }
-
-        if (historyLine != NULL) {
-            Sys_TTYHideInputLine();
-            sys_ttyCurrentLine = *historyLine;
-            Sys_TTYShowInputLine();
-        }
-        return NULL;
-    }
-
-    if (input == '\r' || input == SYS_TTY_ASCII_NEWLINE) {
-        Sys_TTYStoreHistoryLine(&sys_ttyCurrentLine);
-        strcpy(sys_ttyInputReturnBuffer, sys_ttyCurrentLine.buffer);
-        Sys_TTYResetLine(&sys_ttyCurrentLine);
-        fputc(SYS_TTY_ASCII_NEWLINE, stdout);
-        fflush(stdout);
-        return sys_ttyInputReturnBuffer;
-    }
-
-    if (input == sys_ttyEraseChar || input == SYS_TTY_ASCII_DELETE ||
-        input == SYS_TTY_ASCII_BACKSPACE) {
-        if (sys_ttyCurrentLine.cursor > 0) {
-            sys_ttyCurrentLine.cursor--;
-            sys_ttyCurrentLine.buffer[sys_ttyCurrentLine.cursor] =
-                SYS_TTY_ASCII_NUL;
-            Sys_TTYErasePreviousChar();
-        }
-        return NULL;
-    }
-
-    if (input == SYS_TTY_ASCII_TAB) {
-        Sys_TTYHideInputLine();
-        Sys_TTYCompleteLine(&sys_ttyCurrentLine);
-        sys_ttyCurrentLine.cursor = strlen(sys_ttyCurrentLine.buffer);
-        Sys_TTYShowInputLine();
-        return NULL;
-    }
-
-    if (input <= SYS_TTY_CONTROL_MAX ||
-        sys_ttyCurrentLine.cursor >= CON_INPUT_BUFFER_SIZE - 1) {
-        return NULL;
-    }
-
-    sys_ttyCurrentLine.buffer[sys_ttyCurrentLine.cursor] = (char)input;
-    sys_ttyCurrentLine.cursor++;
-    sys_ttyCurrentLine.buffer[sys_ttyCurrentLine.cursor] = SYS_TTY_ASCII_NUL;
-    fputc(input, stdout);
-    fflush(stdout);
-    return NULL;
-#else
     char input;
     ssize_t readCount;
 
@@ -257,5 +182,4 @@ char *Sys_ConsoleInput(void)
     }
 
     return NULL;
-#endif
 }

@@ -6,21 +6,10 @@ include build-mk/sources/server-engine.mk
 
 BUILD_DIR ?= .workbench/build/server/objects
 TARGET := $(BUILD_DIR)/libcoduo_lnxded_recovered.a
-ifneq ($(filter native-macos-exe,$(MAKECMDGOALS)),)
-CODUO_FP_FAITHFUL ?= relaxed
-EMULATE_X87 ?= 1
-EMU_X87_BACKEND ?= softfloat
-NATIVE_MACOS_X87_VARIANT := $(if $(filter softfloat,$(EMU_X87_BACKEND)),,-$(EMU_X87_BACKEND)$(if $(filter 1,$(EMU_X87_EXACT_GEOMETRY)),-exact-geometry))
-EXE_BUILD_DIR ?= .workbench/build/server/native-macos-x87$(NATIVE_MACOS_X87_VARIANT)
-endif
 EXE_BUILD_DIR ?= .workbench/build/server/native
 EXE_TARGET := $(EXE_BUILD_DIR)/coduo_lnxded_recovered
 EXE_I386_BUILD_DIR ?= .workbench/build/server/linux-i386
 EXE_I386_TARGET := $(EXE_I386_BUILD_DIR)/coduo_lnxded_recovered
-WINDOWS_I386_BUILD_DIR ?= .workbench/build/server/windows-i386
-WINDOWS_I386_TARGET := $(WINDOWS_I386_BUILD_DIR)/coduo_dedicated_recovered.exe
-WINDOWS_I686_BUILD_DIR ?= .workbench/build/server/windows-i686
-WINDOWS_I686_TARGET := $(WINDOWS_I686_BUILD_DIR)/coduo_dedicated_recovered.exe
 CODUO_ENABLE_PUNKBUSTER ?= 0
 CODUO_DISABLE_SERVER_AUTH ?= 1
 QCOMMON_DIR := src/qcommon
@@ -110,35 +99,8 @@ EXE_I386_OBJS := $(patsubst $(STANDALONE_DIR)/%.c,$(EXE_I386_BUILD_DIR)/%.o,$(ST
                  $(patsubst $(SERVER_DIR)/%.c,$(EXE_I386_BUILD_DIR)/shared-server/%.o,$(SERVER_CSRCS)) \
                  $(patsubst $(SCRIPT_DIR)/%.c,$(EXE_I386_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CSRCS)) \
                  $(patsubst $(SCRIPT_DIR)/%.cpp,$(EXE_I386_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CXXSRCS))
-WINDOWS_I386_OBJS := $(patsubst $(STANDALONE_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/%.o,$(STANDALONE_CSRCS)) \
-                     $(patsubst $(STANDALONE_DIR)/%.cpp,$(WINDOWS_I386_BUILD_DIR)/%.o,$(CXXSRCS)) \
-                     $(patsubst $(POSIX_GENERATED_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/generated-posix/%.o,$(POSIX_GENERATED_CSRCS)) \
-                     $(patsubst $(QCOMMON_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/qcommon/%.o,$(QCOMMON_CSRCS)) \
-		     $(patsubst $(CRT_COMPAT_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/src/compat/crt/%.o,$(CRT_COMPAT_CSRCS)) \
-                     $(patsubst $(MATH_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/math/%.o,$(MATH_CSRCS)) \
-                     $(patsubst $(SOUND_ALIAS_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/sound-alias/%.o,$(SOUND_ALIAS_CSRCS)) \
-                     $(patsubst $(ANIMATION_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/src/animation/%.o,$(ANIMATION_CSRCS)) \
-                     $(patsubst $(COLLISION_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/src/collision/%.o,$(COLLISION_CSRCS)) \
-                     $(patsubst $(FILESYSTEM_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/src/filesystem/%.o,$(FILESYSTEM_CSRCS)) \
-                     $(patsubst $(SERVER_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/shared-server/%.o,$(SERVER_CSRCS)) \
-                     $(patsubst $(SCRIPT_DIR)/%.c,$(WINDOWS_I386_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CSRCS)) \
-                     $(patsubst $(SCRIPT_DIR)/%.cpp,$(WINDOWS_I386_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CXXSRCS))
-WINDOWS_I686_OBJS := $(patsubst $(STANDALONE_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/%.o,$(STANDALONE_CSRCS)) \
-                     $(patsubst $(STANDALONE_DIR)/%.cpp,$(WINDOWS_I686_BUILD_DIR)/%.o,$(CXXSRCS)) \
-                     $(patsubst $(POSIX_GENERATED_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/generated-posix/%.o,$(POSIX_GENERATED_CSRCS)) \
-                     $(patsubst $(QCOMMON_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/qcommon/%.o,$(QCOMMON_CSRCS)) \
-		     $(patsubst $(CRT_COMPAT_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/src/compat/crt/%.o,$(CRT_COMPAT_CSRCS)) \
-                     $(patsubst $(MATH_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/math/%.o,$(MATH_CSRCS)) \
-                     $(patsubst $(SOUND_ALIAS_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/sound-alias/%.o,$(SOUND_ALIAS_CSRCS)) \
-                     $(patsubst $(ANIMATION_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/src/animation/%.o,$(ANIMATION_CSRCS)) \
-                     $(patsubst $(COLLISION_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/src/collision/%.o,$(COLLISION_CSRCS)) \
-                     $(patsubst $(FILESYSTEM_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/src/filesystem/%.o,$(FILESYSTEM_CSRCS)) \
-                     $(patsubst $(SERVER_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/shared-server/%.o,$(SERVER_CSRCS)) \
-                     $(patsubst $(SCRIPT_DIR)/%.c,$(WINDOWS_I686_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CSRCS)) \
-                     $(patsubst $(SCRIPT_DIR)/%.cpp,$(WINDOWS_I686_BUILD_DIR)/src/scripting/%.o,$(SCRIPT_CXXSRCS))
 DEPS := $(OBJS:.o=.d) $(SHARED_OBJS:.o=.d) $(EXE_OBJS:.o=.d) \
-        $(EXE_I386_OBJS:.o=.d) $(WINDOWS_I386_OBJS:.o=.d) \
-        $(WINDOWS_I686_OBJS:.o=.d)
+        $(EXE_I386_OBJS:.o=.d)
 
 CPPFLAGS += -iquote $(STANDALONE_DIR)/bindings \
 	-iquote src/qcommon/bindings/default \
@@ -147,7 +109,7 @@ CPPFLAGS += -iquote $(STANDALONE_DIR)/bindings \
 	-DCODUO_ENABLE_PUNKBUSTER=$(CODUO_ENABLE_PUNKBUSTER) \
 	-DCODUO_DISABLE_SERVER_AUTH=$(CODUO_DISABLE_SERVER_AUTH)
 # Stock i386 uses signed plain char, 32-bit enum-backed domains, and wrapping
-# ADD/SUB/IMUL semantics. GCC, Clang, and MinGW support explicit switches for
+# ADD/SUB/IMUL semantics. GCC and Clang support explicit switches for
 # those rules, preventing host defaults or inherited flags from changing them.
 CFLAGS += -std=c11 -Wall -Wextra -Werror -pedantic -fsigned-char \
 	-fno-short-enums -fwrapv -MMD -MP
@@ -165,24 +127,9 @@ EXE_I386_CC ?= gcc -m32
 EXE_I386_CXX ?= g++ -m32
 EXE_I386_LD ?= $(EXE_I386_CXX)
 EXE_I386_LIBS ?= -ldl -lm -pthread -lstdc++ -lz
-MINGW32_CC ?= i686-w64-mingw32-gcc
-MINGW32_CXX ?= i686-w64-mingw32-g++
-WINDOWS_DEP_PREFIX ?=
-WINDOWS_DEP_CPPFLAGS := $(if $(strip $(WINDOWS_DEP_PREFIX)),-I$(WINDOWS_DEP_PREFIX)/include)
-WINDOWS_DEP_LDFLAGS := $(if $(strip $(WINDOWS_DEP_PREFIX)),-L$(WINDOWS_DEP_PREFIX)/lib)
-WINDOWS_COMMON_CPPFLAGS := -D_WIN32_WINNT=0x0601 $(PLATFORM_BEHAVIOR_CPPFLAGS) \
-	$(WINDOWS_DEP_CPPFLAGS)
-WINDOWS_COMMON_FLOAT_FLAGS := -O0 -mfpmath=387 -fexcess-precision=fast
-WINDOWS_COMMON_LDFLAGS := $(WINDOWS_DEP_LDFLAGS) -static-libgcc -static-libstdc++
-WINDOWS_COMMON_LIBS ?= -lws2_32 -lz
 
 UNAME_S := $(shell uname -s)
 HOST_MACHINE := $(shell uname -m)
-ifneq ($(filter native-macos-exe,$(MAKECMDGOALS)),)
-ifneq ($(UNAME_S),Darwin)
-$(error native-macos-exe requires a Darwin host (detected '$(UNAME_S)'))
-endif
-endif
 
 # x87 floating-point faithfulness policy (shared with the game DLL). Decides
 # whether the native/exe build reproduces the original's x87 float rounding
@@ -253,22 +200,16 @@ $(foreach t,$(EMU_X87_GEOMETRY_TUS),$(eval \
         -UEMULATE_X87_BACKEND -DEMULATE_X87_BACKEND=EMU_X87_SOFTFLOAT))
 endif
 
-ifeq ($(UNAME_S),Darwin)
-SHARED_EXT ?= dylib
-UNRESOLVED_ENGINE_LDFLAGS ?= -Wl,-undefined,dynamic_lookup
-ENGINE_IMPORT_LIBS ?= -lm -pthread -lz
-else
 SHARED_EXT ?= so
 UNRESOLVED_ENGINE_LDFLAGS ?=
 ENGINE_IMPORT_LIBS ?= -ldl -lm -pthread -lstdc++ -lz
 CPPFLAGS += -D_GNU_SOURCE
 NATIVE_CXXFLAGS += -Wno-pedantic
-endif
 
 SHARED_TARGET := $(BUILD_DIR)/libcoduo_lnxded_recovered.$(SHARED_EXT)
 
-.PHONY: all check objects shared shared-check-link exe exe-i386 windows \
-	windows-i386 windows-i686 native64-check native64-shared native64-exe native-macos-exe \
+.PHONY: all check objects shared shared-check-link exe exe-i386 \
+	native64-check native64-shared native64-exe \
 	status clean help
 
 all: objects
@@ -285,19 +226,11 @@ exe: $(EXE_TARGET)
 
 exe-i386: $(EXE_I386_TARGET)
 
-windows: windows-i686
-
-windows-i386: $(WINDOWS_I386_TARGET)
-
-windows-i686: $(WINDOWS_I686_TARGET)
-
 native64-check: check
 
 native64-shared: shared-check-link
 
 native64-exe: exe
-
-native-macos-exe: native64-exe
 
 status:
 	python3 analysis/tools/check_engine_recovery_status.py
@@ -307,14 +240,11 @@ clean:
 
 help:
 	@printf '%s\n' \
-	  'Targets: check native64-check native64-shared native64-exe native-macos-exe shared-check-link exe exe-i386 windows-i386 windows-i686 clean' \
+	  'Targets: check native64-check native64-shared native64-exe shared-check-link exe exe-i386 clean' \
 	  'Options: CODUO_ENABLE_PUNKBUSTER=1 compiles PunkBuster recovery code.' \
 	  '         CODUO_DISABLE_SERVER_AUTH=1 (default) skips external CD-key authorization; 0 enables it.' \
 	  '         CODUO_FP_FAITHFUL=auto|strict|relaxed controls x87 float faithfulness;' \
-	  '           native-macos-exe selects relaxed plus EMULATE_X87=1.' \
-	  '         EMU_X87_BACKEND=softfloat|double selects the emulated-site backend.' \
-	  '         WINDOWS_DEP_PREFIX=/path supplies MinGW zlib headers and libraries.' \
-	  '           See docs/fp-faithfulness.md.'
+	  '         EMU_X87_BACKEND=softfloat|double selects the emulated-site backend.'
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -324,12 +254,6 @@ $(EXE_I386_BUILD_DIR):
 
 $(EXE_BUILD_DIR):
 	mkdir -p $(EXE_BUILD_DIR)
-
-$(WINDOWS_I386_BUILD_DIR):
-	mkdir -p $(WINDOWS_I386_BUILD_DIR)
-
-$(WINDOWS_I686_BUILD_DIR):
-	mkdir -p $(WINDOWS_I686_BUILD_DIR)
 
 ifeq ($(NATIVE_NEEDS_SOFTFLOAT),1)
 $(NATIVE_SOFTFLOAT_LIBRARY): $(SOFTFLOAT_BUILD_INPUTS)
@@ -568,140 +492,6 @@ $(EXE_I386_BUILD_DIR)/%.o: $(STANDALONE_DIR)/%.cpp
 		-Wno-pedantic -march=i386 $(PLATFORM_BEHAVIOR_CPPFLAGS) \
 		-fexcess-precision=fast -c $< -o $@
 
-$(WINDOWS_I386_BUILD_DIR)/%.o: $(STANDALONE_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/generated-posix/%.o: $(POSIX_GENERATED_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/qcommon/%.o: $(QCOMMON_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/compat/crt/%.o: $(CRT_COMPAT_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/math/%.o: $(MATH_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/sound-alias/%.o: $(SOUND_ALIAS_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/animation/%.o: $(ANIMATION_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/collision/%.o: $(COLLISION_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/filesystem/%.o: $(FILESYSTEM_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/shared-server/%.o: $(SERVER_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/scripting/%.o: $(SCRIPT_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i386 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/src/scripting/%.o: $(SCRIPT_DIR)/%.cpp
-	mkdir -p $(dir $@)
-	$(MINGW32_CXX) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) \
-		$(filter-out -pedantic,$(CXXFLAGS)) -Wno-pedantic -march=i386 \
-		$(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I386_BUILD_DIR)/%.o: $(STANDALONE_DIR)/%.cpp
-	mkdir -p $(dir $@)
-	$(MINGW32_CXX) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) \
-		$(filter-out -pedantic,$(CXXFLAGS)) -Wno-pedantic -march=i386 \
-		$(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/%.o: $(STANDALONE_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/generated-posix/%.o: $(POSIX_GENERATED_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/qcommon/%.o: $(QCOMMON_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/compat/crt/%.o: $(CRT_COMPAT_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/math/%.o: $(MATH_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/sound-alias/%.o: $(SOUND_ALIAS_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/animation/%.o: $(ANIMATION_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/collision/%.o: $(COLLISION_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/filesystem/%.o: $(FILESYSTEM_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/shared-server/%.o: $(SERVER_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/scripting/%.o: $(SCRIPT_DIR)/%.c
-	mkdir -p $(dir $@)
-	$(MINGW32_CC) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) $(CFLAGS) \
-		-march=i686 $(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/src/scripting/%.o: $(SCRIPT_DIR)/%.cpp
-	mkdir -p $(dir $@)
-	$(MINGW32_CXX) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) \
-		$(filter-out -pedantic,$(CXXFLAGS)) -Wno-pedantic -march=i686 \
-		$(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
-$(WINDOWS_I686_BUILD_DIR)/%.o: $(STANDALONE_DIR)/%.cpp
-	mkdir -p $(dir $@)
-	$(MINGW32_CXX) $(CPPFLAGS) $(WINDOWS_COMMON_CPPFLAGS) \
-		$(filter-out -pedantic,$(CXXFLAGS)) -Wno-pedantic -march=i686 \
-		$(WINDOWS_COMMON_FLOAT_FLAGS) -c $< -o $@
-
 $(TARGET): $(OBJS) | $(BUILD_DIR)
 	@if [ -e $@ ]; then rm $@; fi
 	$(AR) rcs $@ $^
@@ -714,11 +504,5 @@ $(EXE_TARGET): $(EXE_OBJS) $(NATIVE_SOFTFLOAT_LIBRARY) | $(EXE_BUILD_DIR)
 
 $(EXE_I386_TARGET): $(EXE_I386_OBJS) | $(EXE_I386_BUILD_DIR)
 	$(EXE_I386_LD) -o $@ $^ $(EXE_I386_LIBS)
-
-$(WINDOWS_I386_TARGET): $(WINDOWS_I386_OBJS) | $(WINDOWS_I386_BUILD_DIR)
-	$(MINGW32_CXX) -o $@ $^ $(WINDOWS_COMMON_LDFLAGS) $(WINDOWS_COMMON_LIBS)
-
-$(WINDOWS_I686_TARGET): $(WINDOWS_I686_OBJS) | $(WINDOWS_I686_BUILD_DIR)
-	$(MINGW32_CXX) -o $@ $^ $(WINDOWS_COMMON_LDFLAGS) $(WINDOWS_COMMON_LIBS)
 
 -include $(DEPS)

@@ -5,9 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#if !defined(_WIN32)
 #include <strings.h>
-#endif
 
 /*
  * Complete weapon-definition descriptor table.  The Windows cgame table at
@@ -42,11 +40,7 @@ static int32_t bg_compat_find_weapon_enum_value(
     int32_t index;
 
     for (index = 0; index < count; ++index) {
-#if defined(_WIN32)
-        if (_stricmp(value, names[index]) == 0) {
-#else
         if (strcasecmp(value, names[index]) == 0) {
-#endif
             return index;
         }
     }

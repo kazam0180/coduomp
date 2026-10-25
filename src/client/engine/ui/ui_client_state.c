@@ -88,14 +88,6 @@ void CLUI_GetCDKey(char *key, int32_t keySize,
  * the user-data root, keeping it separate from retail content directories. */
 void CLUI_SetCDKey(const char *key, const char *checksum)
 {
-#if defined(_WIN32)
-    memcpy(&cl_cdkey[CL_PRIMARY_CDKEY_OFFSET], key, CL_CDKEY_PART_SIZE);
-    cl_cdkey[CL_UNIQUE_MOD_CDKEY_OFFSET] = '\0';
-    memcpy(&cl_cdkeyChecksums[CL_PRIMARY_CDKEY_CHECKSUM_OFFSET],
-           checksum, CL_CDKEY_CHECKSUM_SIZE);
-    cl_cdkeyChecksums[CL_UNIQUE_MOD_CDKEY_CHECKSUM_OFFSET] = '\0';
-    Com_WriteCDKey();
-#else
     const cvar_t *const fsGame =
         Cvar_Get("fs_game", "", CVAR_SYSTEMINFO | CVAR_INIT);
     const qboolean useUniqueModKey =
@@ -122,7 +114,6 @@ void CLUI_SetCDKey(const char *key, const char *checksum)
     Com_WriteCDKey(
         gameDirectory, &cl_cdkey[keyOffset],
         &cl_cdkeyChecksums[checksumOffset]);
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0041b610..0x0041b64d.

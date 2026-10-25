@@ -5,9 +5,6 @@
 #include "renderer_gpu_profile.h"
 
 #include "../client/debug_lines.h"
-#if defined(__APPLE__) && defined(__aarch64__)
-#include "../platform/sdl_platform.h"
-#endif
 
 #include <math.h>
 #include <string.h>

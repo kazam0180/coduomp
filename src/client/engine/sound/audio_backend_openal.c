@@ -14,20 +14,11 @@
 /* NOT_FROM_ORIGINAL_SOURCE_STORAGE_FILE: all private storage in this
  * translation unit belongs to the OpenAL backend. */
 
-#if defined(__APPLE__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include <AudioToolbox/AudioToolbox.h>
-#include <OpenAL/al.h>
-#include <OpenAL/alc.h>
-#include <OpenAL/MacOSX_OALExtensions.h>
-#else
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/efx.h>
 #include <AL/efx-presets.h>
 #include <sndfile.h>
-#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -53,10 +44,6 @@ typedef struct openal_driver_s {
     ALCdevice *device;
     ALCcontext *context;
     int32_t sampleRate;
-#if defined(__APPLE__)
-    alcASASetSourceProcPtr setSourceProperty;
-    alcASASetListenerProcPtr setListenerProperty;
-#else
     LPALGENEFFECTS genEffects;
     LPALDELETEEFFECTS deleteEffects;
     LPALEFFECTI effecti;
@@ -148,14 +135,8 @@ struct audio_stream_handle_s {
     void *ownedFileBytes;
     size_t fileByteCount;
     openal_memory_file_t memoryFile;
-#if defined(__APPLE__)
-    AudioFileID audioFile;
-    ExtAudioFileRef extendedFile;
-    AudioStreamBasicDescription clientFormat;
-#else
     SNDFILE *soundFile;
     SF_INFO soundInfo;
-#endif
     void *decodePcmBuffer;
     int32_t baseRate;
     int32_t playbackRate;
@@ -1199,14 +1180,6 @@ static void openal_delete_reverb_filter(ALuint *filter)
 static void openal_apply_reverb(
     ALuint source, ALuint *filter, float wetLevel)
 {
-#if defined(__APPLE__)
-    (void)filter;
-    if (openal_driver.setSourceProperty == NULL)
-        return;
-    ALfloat level = openal_clamp(wetLevel, 0.0f, 1.0f);
-    (void)openal_driver.setSourceProperty(
-        ALC_ASA_REVERB_SEND_LEVEL, source, &level, sizeof(level));
-#else
     if (!openal_driver.efxAvailable || filter == NULL)
         return;
     const ALfloat level = openal_clamp(wetLevel, 0.0f, 1.0f);
@@ -1234,78 +1207,13 @@ static void openal_apply_reverb(
                    AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
         openal_delete_reverb_filter(filter);
     }
-#endif
 }
 
 static void openal_apply_room_type(int32_t roomType)
 {
-#if defined(__APPLE__)
-    static const ALint roomTypes[26] = {
-        ALC_ASA_REVERB_ROOM_TYPE_MediumRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_SmallRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumHall,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeHall,
-        ALC_ASA_REVERB_ROOM_TYPE_Cathedral,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeHall2,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom2,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumHall,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_MediumHall,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeHall,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeRoom2,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_LargeChamber,
-        ALC_ASA_REVERB_ROOM_TYPE_Plate,
-        ALC_ASA_REVERB_ROOM_TYPE_Plate,
-        ALC_ASA_REVERB_ROOM_TYPE_Plate
-    };
-    if (openal_driver.setListenerProperty == NULL)
-        return;
-    if (roomType < 0 || roomType >= (int32_t)(
-            sizeof(roomTypes) / sizeof(roomTypes[0]))) {
-        roomType = 0;
-    }
-    ALint selectedRoom = roomTypes[roomType];
-    (void)openal_driver.setListenerProperty(
-        ALC_ASA_REVERB_ROOM_TYPE, &selectedRoom, sizeof(selectedRoom));
-#else
     (void)openal_apply_efx_preset(roomType);
-#endif
 }
 
-#if defined(__APPLE__)
-static OSStatus openal_audio_read(
-    void *clientData, SInt64 position, UInt32 requestCount,
-    void *buffer, UInt32 *actualCount)
-{
-    const openal_memory_file_t *const file = clientData;
-    if (position < 0 || position >= file->byteCount) {
-        *actualCount = 0;
-        return noErr;
-    }
-    int64_t available = file->byteCount - position;
-    if (available > requestCount)
-        available = requestCount;
-    memcpy(buffer, file->borrowedBytes + position, (size_t)available);
-    *actualCount = (UInt32)available;
-    return noErr;
-}
-
-static SInt64 openal_audio_size(void *clientData)
-{
-    const openal_memory_file_t *const file = clientData;
-    return file->byteCount;
-}
-#else
 /* NOT_FROM_ORIGINAL_SOURCE: libsndfile virtual-file length callback. */
 static sf_count_t openal_sndfile_length(void *clientData)
 {
@@ -1381,18 +1289,11 @@ static int32_t openal_stream_buffer_index(
 static qboolean openal_stream_seek_decoder(
     struct audio_stream_handle_s *stream, uint32_t frame)
 {
-#if defined(__APPLE__)
-    if (ExtAudioFileSeek(stream->extendedFile, frame) != noErr) {
-        openal_set_error("AudioToolbox stream seek failed");
-        return qfalse;
-    }
-#else
     if (sf_seek(stream->soundFile, (sf_count_t)frame, SEEK_SET) !=
         (sf_count_t)frame) {
         openal_set_error("libsndfile stream seek failed");
         return qfalse;
     }
-#endif
     stream->decoderAtEnd = qfalse;
     return qtrue;
 }
@@ -1400,36 +1301,6 @@ static qboolean openal_stream_seek_decoder(
 static qboolean openal_stream_fill_buffer(
     struct audio_stream_handle_s *stream, int32_t bufferIndex)
 {
-#if defined(__APPLE__)
-    UInt32 decodedFrames = OPENAL_STREAM_BUFFER_FRAMES;
-    AudioBufferList buffers;
-    buffers.mNumberBuffers = 1;
-    buffers.mBuffers[0].mNumberChannels =
-        stream->clientFormat.mChannelsPerFrame;
-    buffers.mBuffers[0].mDataByteSize =
-        decodedFrames * stream->clientFormat.mBytesPerFrame;
-    buffers.mBuffers[0].mData = stream->decodePcmBuffer;
-    const OSStatus result = ExtAudioFileRead(
-        stream->extendedFile, &decodedFrames, &buffers);
-    if (result != noErr) {
-        openal_set_error("AudioToolbox stream decode failed");
-        stream->decoderAtEnd = qtrue;
-        return qfalse;
-    }
-    if (decodedFrames == 0) {
-        stream->decoderAtEnd = qtrue;
-        return qfalse;
-    }
-    if (decodedFrames < OPENAL_STREAM_BUFFER_FRAMES)
-        stream->decoderAtEnd = qtrue;
-
-    const ALenum format =
-        stream->clientFormat.mChannelsPerFrame == 1
-            ? AL_FORMAT_MONO16
-            : AL_FORMAT_STEREO16;
-    const uint32_t byteCount =
-        decodedFrames * stream->clientFormat.mBytesPerFrame;
-#else
     const sf_count_t decodedFrames = sf_readf_short(
         stream->soundFile, stream->decodePcmBuffer,
         OPENAL_STREAM_BUFFER_FRAMES);
@@ -1545,70 +1416,6 @@ static qboolean openal_open_stream_decoder(
     struct audio_stream_handle_s *stream)
 {
     stream->memoryFile.borrowedBytes = stream->ownedFileBytes;
-#if defined(__APPLE__)
-    stream->memoryFile.byteCount = (int64_t)stream->fileByteCount;
-    OSStatus result = AudioFileOpenWithCallbacks(
-        &stream->memoryFile, openal_audio_read, NULL,
-        openal_audio_size, NULL, 0, &stream->audioFile);
-    if (result != noErr)
-        return qfalse;
-
-    AudioStreamBasicDescription sourceFormat;
-    UInt32 propertySize = sizeof(sourceFormat);
-    result = AudioFileGetProperty(
-        stream->audioFile, kAudioFilePropertyDataFormat,
-        &propertySize, &sourceFormat);
-    if (result != noErr || sourceFormat.mChannelsPerFrame == 0 ||
-        !isfinite(sourceFormat.mSampleRate) ||
-        sourceFormat.mSampleRate < 1.0 ||
-        sourceFormat.mSampleRate > (double)INT32_MAX) {
-        return qfalse;
-    }
-
-    result = ExtAudioFileWrapAudioFileID(
-        stream->audioFile, false, &stream->extendedFile);
-    if (result != noErr)
-        return qfalse;
-
-    const UInt32 channelCount =
-        sourceFormat.mChannelsPerFrame > 1 ? 2u : 1u;
-    memset(&stream->clientFormat, 0, sizeof(stream->clientFormat));
-    stream->clientFormat.mSampleRate = sourceFormat.mSampleRate;
-    stream->clientFormat.mFormatID = kAudioFormatLinearPCM;
-    stream->clientFormat.mFormatFlags =
-        kLinearPCMFormatFlagIsSignedInteger |
-        kAudioFormatFlagsNativeEndian |
-        kAudioFormatFlagIsPacked;
-    stream->clientFormat.mBytesPerPacket = channelCount * 2u;
-    stream->clientFormat.mFramesPerPacket = 1;
-    stream->clientFormat.mBytesPerFrame = channelCount * 2u;
-    stream->clientFormat.mChannelsPerFrame = channelCount;
-    stream->clientFormat.mBitsPerChannel = 16;
-    result = ExtAudioFileSetProperty(
-        stream->extendedFile, kExtAudioFileProperty_ClientDataFormat,
-        sizeof(stream->clientFormat), &stream->clientFormat);
-    if (result != noErr)
-        return qfalse;
-
-    SInt64 fileFrames = 0;
-    propertySize = sizeof(fileFrames);
-    result = ExtAudioFileGetProperty(
-        stream->extendedFile, kExtAudioFileProperty_FileLengthFrames,
-        &propertySize, &fileFrames);
-    if (result != noErr || fileFrames <= 0 ||
-        (uint64_t)fileFrames > UINT32_MAX)
-        return qfalse;
-
-    stream->frameCount = (uint32_t)fileFrames;
-    stream->baseRate = (int32_t)stream->clientFormat.mSampleRate;
-    stream->playbackRate = stream->baseRate;
-    stream->decodePcmBuffer = malloc(
-        OPENAL_STREAM_BUFFER_FRAMES *
-        stream->clientFormat.mBytesPerFrame);
-    if (stream->decodePcmBuffer == NULL)
-        return qfalse;
-    return qtrue;
-#else
     static SF_VIRTUAL_IO virtualIo = {
         openal_sndfile_length,
         openal_sndfile_seek,
@@ -1643,7 +1450,7 @@ static qboolean openal_open_stream_decoder(
     if (stream->decodePcmBuffer == NULL)
         return qfalse;
     return qtrue;
-#endif
+}
 }
 
 static qboolean openal_read_file(
@@ -1754,16 +1561,9 @@ static void openal_delete_stream(
         if (stream->buffers[index] != 0)
             alDeleteBuffers(1, &stream->buffers[index]);
     }
-#if defined(__APPLE__)
-    if (stream->extendedFile != NULL)
-        ExtAudioFileDispose(stream->extendedFile);
-    if (stream->audioFile != NULL)
-        AudioFileClose(stream->audioFile);
-#else
     if (stream->soundFile != NULL)
         (void)sf_close(stream->soundFile);
     openal_delete_reverb_filter(&stream->reverbFilter);
-#endif
     free(stream->decodePcmBuffer);
     free(stream->ownedFileBytes);
     free(stream);
@@ -1832,10 +1632,6 @@ void openal_shutdown(void)
         alcCloseDevice(openal_driver.device);
         openal_driver.device = NULL;
     }
-#if defined(__APPLE__)
-    openal_driver.setSourceProperty = NULL;
-    openal_driver.setListenerProperty = NULL;
-#endif
 }
 
 void openal_close_3D_provider(
@@ -2122,24 +1918,7 @@ audio_driver_t openal_open_digital_driver(
     alDistanceModel(AL_NONE);
     alListener3f(AL_POSITION, 0.0f, 0.0f, 0.0f);
     openal_driver.sampleRate = sampleRate;
-#if defined(__APPLE__)
-    if (alcIsExtensionPresent(
-            openal_driver.device, "ALC_EXT_ASA")) {
-        openal_driver.setSourceProperty =
-            (alcASASetSourceProcPtr)alcGetProcAddress(
-                openal_driver.device, "alcASASetSource");
-        openal_driver.setListenerProperty =
-            (alcASASetListenerProcPtr)alcGetProcAddress(
-                openal_driver.device, "alcASASetListener");
-        if (openal_driver.setListenerProperty != NULL) {
-            ALuint enabled = AL_TRUE;
-            (void)openal_driver.setListenerProperty(
-                ALC_ASA_REVERB_ON, &enabled, sizeof(enabled));
-        }
-    }
-#else
     openal_initialize_efx();
-#endif
     return &openal_driver;
 }
 
@@ -3033,10 +2812,6 @@ void openal_start_3D_sample(
                       sample->sources);
     }
 }
-
-#if defined(__APPLE__)
-#pragma clang diagnostic pop
-#endif
 
 const audio_backend_api_t openal_backend = {
     .name = AUDIO_BACKEND_OPENAL_NAME,

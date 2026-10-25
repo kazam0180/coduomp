@@ -33,18 +33,10 @@ int32_t Com_sprintf(char *destination, size_t destinationSize,
     }
 
     va_start(arguments, format);
-#if defined(WINDOWS_BEHAVIOR) && defined(_WIN32)
-    result = _vsnprintf(destination, destinationSize, format, arguments);
-#else
     result = vsnprintf(destination, destinationSize, format, arguments);
-#endif
     va_end(arguments);
 
-#if defined(WINDOWS_BEHAVIOR) && !defined(_WIN32)
-    /* ORIGINAL_PLATFORM_DIFFERENCE: the embedded Windows formatter returns
-     * the size for an exact fit and -1 only when output exceeds the size.
-     * C99 returns the required length, so supporting non-Windows client builds
-     * reproduce the Windows return without changing the final buffer bytes. */
+#if defined(WINDOWS_BEHAVIOR)
     if (result >= 0 && (size_t)result > destinationSize) {
         result = -1;
     }

@@ -330,9 +330,7 @@ typedef struct script_function_s {
 #define SPAWN_NO_FUNCTION_FORMAT "%s doesn't have a spawn function\n"
 
 
-#if !defined(_WIN32)
 int strcasecmp(const char *a, const char *b);
-#endif
 const char *ConcatArgs(int start);
 void BG_EvaluateTrajectory(const trajectory_t *trajectory, int atTime, float *out);
 int G_IndexForMeansOfDeath(const char *name);

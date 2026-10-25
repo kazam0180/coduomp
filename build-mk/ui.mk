@@ -1,20 +1,14 @@
-.PHONY: native-link linux-i386-link windows-cross-link win32-abi-link \
+.PHONY: native-link linux-i386-link \
 	syntax-check check
 
 ROOT := .
 include build-mk/sources/ui.mk
 CODUO_DEFAULT_BEHAVIOR := windows
-# The recovered UI represents only the retail Windows client module.
 override CODUO_BEHAVIOR := windows
 include $(ROOT)/build-mk/platform-behavior.mk
 CC ?= clang
 WIDTH_CC ?= clang
-WINDOWS_CC ?= x86_64-w64-mingw32-gcc
-WIN32_CC ?= i686-w64-mingw32-gcc
 RECOVERY_POLICY_CPPFLAGS :=
-WINDOWS_DEF := build-mk/abi/ui/uo_ui_mp_x86.def
-WINDOWS_LIBRARY ?= .workbench/build/ui/windows-x86_64/uo_ui_mp_x86.dll
-WIN32_LIBRARY ?= .workbench/build/ui/windows-i686/uo_ui_mp_x86.dll
 LINUX_I386_LIBRARY ?= .workbench/build/ui/linux-i386/libcoduo_ui.so
 UI_DIR := $(ROOT)/src/client/ui
 C_SOURCES := $(UI_C_SOURCES)
@@ -159,21 +153,13 @@ INCLUDE_FLAGS := -iquote $(UI_DIR)/bindings \
 	-iquote $(ROOT)/src/qcommon/bindings/default \
 	-I$(ROOT)/src
 
-ifeq ($(shell uname -s),Darwin)
-NATIVE_LIBRARY ?= .workbench/build/ui/native/libcoduo_ui.dylib
-NATIVE_LDFLAGS := -dynamiclib
-else
 NATIVE_LIBRARY ?= .workbench/build/ui/native/libcoduo_ui.so
 NATIVE_LDFLAGS := -shared -Wl,--no-undefined
-endif
 
 # The retail MSVC target performs signed integer arithmetic in 32-bit
 # registers. Preserve that defined target behavior without per-expression
 # rollover adapters in recovered source.
 UI_INTEGER_FLAGS := -fwrapv
-# Keep tentative globals in ordinary zero-fill storage. Darwin ld64 otherwise
-# derives a 32 KiB COMMON alignment from the large UI state and reduces it to
-# the arm64 Mach-O segment maximum with a link warning.
 UI_NATIVE_STORAGE_FLAGS := -fno-common
 
 native-link:
@@ -188,18 +174,6 @@ syntax-check:
 		-Werror=int-conversion -Werror=shorten-64-to-32 \
 		-Werror=pointer-to-int-cast -Werror=int-to-pointer-cast \
 		-Werror=void-pointer-to-int-cast $(INCLUDE_FLAGS) $(ALL_C_SOURCES)
-
-windows-cross-link:
-	@mkdir -p $(dir $(WINDOWS_LIBRARY))
-	$(WINDOWS_CC) -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) -DWINDOWS_BEHAVIOR $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror $(INCLUDE_FLAGS) $(ALL_C_SOURCES) \
-		-shared -static-libgcc $(WINDOWS_DEF) -Wl,--no-undefined -luser32 -lgdi32 -lm \
-		-o $(WINDOWS_LIBRARY)
-
-win32-abi-link:
-	@mkdir -p $(dir $(WIN32_LIBRARY))
-	$(WIN32_CC) -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) -DWINDOWS_BEHAVIOR $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror $(INCLUDE_FLAGS) $(ALL_C_SOURCES) \
-		-shared -static-libgcc $(WINDOWS_DEF) -Wl,--no-undefined -luser32 -lgdi32 -lm \
-		-o $(WIN32_LIBRARY)
 
 linux-i386-link:
 	@mkdir -p $(dir $(LINUX_I386_LIBRARY))

@@ -4,13 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#if defined(_MSC_VER)
-#define RENDERER_GL_API_CALL __stdcall
-#elif defined(_WIN32) && defined(__i386__)
-#define RENDERER_GL_API_CALL __attribute__((stdcall))
-#else
 #define RENDERER_GL_API_CALL
-#endif
 
 typedef void (RENDERER_GL_API_CALL *renderer_gl_alpha_func_t)(
     uint32_t func, float reference);

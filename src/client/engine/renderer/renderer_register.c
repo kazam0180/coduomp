@@ -5,7 +5,6 @@
 #include "renderer_cvars.h"
 #include "renderer_gpu_profile.h"
 #include "client/common/client_color_settings.h"
-#include "../platform/hardware_profile.h"
 
 enum {
     R_DEFAULT_MAX_POLYS = 4096,
@@ -368,13 +367,8 @@ void R_Register(void)
         ri.Cvar_Get("r_singleShader", "0", CVAR_CHEAT | CVAR_LATCH);
     r_lodbias = ri.Cvar_Get("r_lodbias", "0", CVAR_ARCHIVE);
     r_flares = ri.Cvar_Get("r_flares", "1", CVAR_CHEAT);
-    /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): Apple Silicon avoids
-     * synchronous depth readback through nonblocking occlusion queries.
-     * Other hardware retains the recovered path unless explicitly enabled. */
     r_flareOcclusionQuery = ri.Cvar_Get(
-        "r_flareOcclusionQuery",
-        coduomp_is_apple_silicon() != qfalse ? "1" : "0",
-        CVAR_ARCHIVE);
+        "r_flareOcclusionQuery", "0", CVAR_ARCHIVE);
     r_znear = ri.Cvar_Get("r_znear", "4", CVAR_CHEAT);
     AssertCvarRange(r_znear, 0.0010000000474974513f, 200.0f, qtrue);
     r_zfar = ri.Cvar_Get("r_zfar", "0", CVAR_CHEAT);

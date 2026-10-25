@@ -27,18 +27,14 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Platforms and display
 
-- Extends client support to macOS and Linux.
+- Extends client support to Linux.
 - The graphics menu adds a Current Display option and filters modern presets through 3840 x 2160 to resolutions reported by the selected display.
-- The Monitor selector chooses the display used for window placement, fullscreen presentation, and resolution discovery on Windows, macOS, and Linux. Its archived `r_display` cvar uses a zero-based index (default `0`); apply the graphics settings or run `vid_restart` after changing it. An unavailable selection falls back to the first display.
-- `r_fullscreen` selects Windowed (`0`), Fullscreen (`1`, the default), or Borderless (`2`). Fullscreen keeps the OS display mode and other monitors active. On macOS and Linux, Fullscreen enters desktop fullscreen while Borderless remains an undecorated desktop-sized window.
+- The Monitor selector chooses the display used for window placement, fullscreen presentation, and resolution discovery on Linux. Its archived `r_display` cvar uses a zero-based index (default `0`); apply the graphics settings or run `vid_restart` after changing it. An unavailable selection falls back to the first display.
+- `r_fullscreen` selects Windowed (`0`), Fullscreen (`1`, the default), or Borderless (`2`). Fullscreen keeps the OS display mode and other monitors active. Fullscreen enters desktop fullscreen while Borderless remains an undecorated desktop-sized window.
 - Widescreen support covers the gameplay FOV, menus, HUD, reticles, optical overlays, and full-screen effects; classic fitted 4:3 remains selectable.
 - The Graphics page has an 80-120 horizontal field-of-view slider below Brightness, with its current value beside the meter. `cg_fov` is the displayed view angle directly. Changing the resolution or Fill Screen/Classic 4:3 presentation resets it to the aspect-aware default only when the effective aspect ratio changes; right-clicking the slider restores that same default.
 - The FOV preference is archived and remains editable on servers with cheats disabled. Startup and server joins do not automatically adjust it to the display aspect.
 - Mods that replace the HUD menu file (e.g. Reign of the Undead) are detected and render their HUD and in-game menu screens with the stock full-width presentation so their authored layout stays intact, while the world keeps the widescreen FOV; `cg_modHudPresentation` can force stretched, centered, or anchored HUD presentation.
-- Retina and other high-DPI displays are supported. macOS fullscreen modes avoid oversized drawables caused by scaled Retina backing surfaces.
-- Alt-Tab from fullscreen is enabled by default on Windows.
-- New Apple Silicon profiles default to 2560 x 1440, high graphics settings, and a 250 FPS cap.
-- Apple Silicon defaults to streamed, interleaved vertex uploads (`r_vbo_stream_draw 1` and `r_vbo_interleave 1`); these saved settings take effect on renderer restart. New Apple Silicon profiles also set `r_finish 0` to avoid forcing GPU synchronization each frame.
 - 64-bit clients require at least 256 MiB of hunk memory (`com_hunkMegs`), including when an older saved setting requested less.
 
 ### Servers, mods, and configuration
@@ -67,9 +63,8 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Console and input
 
-- Windows mouse input uses Raw Input by default, bypassing the system's **Enhance pointer precision** acceleration without changing the Windows setting; **Raw Input Active** under **Options -> Advanced** can disable it. The archived `in_rawInput` cvar selects this path (`1`, the default) or legacy mouse movement (`0`) and takes effect immediately; the read-only `in_rawInputActive` cvar reports whether Raw Input is actually available.
 - The console key can be rebound from the options menu, including rebinding the backtick key itself.
-- Native Linux/macOS clients support Ctrl-V or Command-V clipboard paste.
+- Native Linux clients support Ctrl-V clipboard paste.
 - Ctrl-W deletes the previous console word and treats underscores as word delimiters.
 - Console scrollback is four times larger.
 

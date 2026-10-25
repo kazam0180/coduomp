@@ -12,10 +12,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#endif
-
 enum {
     FS_SAVE_PREFIX_LENGTH = 4
 };
@@ -363,17 +359,6 @@ qboolean FS_MakeReadOnly(const char *qpath, qboolean makeReadOnly)
         filesystem_compat_state_root(fs_homepath->string),
         fs_currentGameDir, qpath, osPath);
 
-#if defined(_WIN32)
-    DWORD attributes = GetFileAttributesA(osPath);
-    DWORD updatedAttributes = attributes;
-    if (makeReadOnly == qfalse)
-        updatedAttributes &= ~FILE_ATTRIBUTE_READONLY;
-    else
-        updatedAttributes |= FILE_ATTRIBUTE_READONLY;
-    if (updatedAttributes == attributes)
-        return qfalse;
-    (void)SetFileAttributesA(osPath, updatedAttributes);
-#else
     struct stat status;
     if (stat(osPath, &status) == -1)
         return qfalse;
@@ -386,7 +371,6 @@ qboolean FS_MakeReadOnly(const char *qpath, qboolean makeReadOnly)
     if (status.st_mode == originalMode)
         return qfalse;
     (void)chmod(osPath, status.st_mode);
-#endif
 
     return qtrue;
 }

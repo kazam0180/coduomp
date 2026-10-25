@@ -18,8 +18,6 @@ The exported tree is organized as normal buildable C/C++ source:
 ```sh
 make -f build-mk/server.mk objects CODUO_FP_FAITHFUL=relaxed
 make -f build-mk/server.mk shared-check-link CODUO_FP_FAITHFUL=relaxed
-make windows-i386 WINDOWS_DEP_PREFIX=/opt/mingw-i686
-make windows-i686 WINDOWS_DEP_PREFIX=/opt/mingw-i686
 ```
 
 The default `check` target compiles the maintained source into a static archive.
@@ -28,12 +26,6 @@ subsystems are completed.
 
 The original Linux server is an i386 program. Build targets that use `-m32`
 require a Linux toolchain with 32-bit compiler and library support installed.
-
-The Windows targets use 32-bit MinGW and produce the engine under
-`build/server/windows-i386/` or `build/server/windows-i686/`. They require a matching
-MinGW zlib; use `WINDOWS_DEP_PREFIX` when it is outside the compiler's default
-search path. The executable is a console application and loads
-`uo/uo_game_mp_x86.dll`.
 
 ## Game-type voting
 

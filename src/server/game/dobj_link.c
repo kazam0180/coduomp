@@ -29,9 +29,7 @@ void G_Printf(const char *format, ...);
 
 int G_ModelIndex(const char *modelName);
 uint16_t G_GetGameId(gentity_t *ent);
-#if !defined(_WIN32)
 int strcasecmp(const char *a, const char *b);
-#endif
 
 void G_SafeDObjFree(gentity_t *ent);
 void G_UpdateTags(gentity_t *ent, qboolean updateBoneIndex);

@@ -55,18 +55,11 @@ char *va(const char *format, ...)
     char *result;
 
     va_start(arguments, format);
-#if defined(WINDOWS_BEHAVIOR) && defined(_WIN32)
-    length = _vsnprintf(q_vaTempBuffer, sizeof(q_vaTempBuffer),
-                        format, arguments);
-#else
     length = vsnprintf(q_vaTempBuffer, sizeof(q_vaTempBuffer),
                        format, arguments);
-#endif
     va_end(arguments);
 
-#if defined(WINDOWS_BEHAVIOR) && !defined(_WIN32)
-    /* The retained Windows formatter returns -1 when the complete result does
-     * not fit.  The distinction is observable only at the common fatal edge. */
+#if defined(WINDOWS_BEHAVIOR)
     if (length >= MAX_VA_STRING) {
         length = -1;
     }

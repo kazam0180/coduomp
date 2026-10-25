@@ -5,8 +5,6 @@
 
 #include <stddef.h>
 
-#if !defined(_WIN32)
-
 typedef struct coduomp_sdl_display_info_s {
     int32_t logicalWidth;
     int32_t logicalHeight;
@@ -68,7 +66,5 @@ void CoduoSDL_SetRelativeMouse(qboolean active);
 qboolean CoduoSDL_HasOpenGLWindow(void);
 void CoduoSDL_ShowErrorDialog(const char *message, const char *title);
 char *coduomp_sdl_get_clipboard_text_compat(void);
-
-#endif
 
 #endif

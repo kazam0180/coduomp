@@ -11,12 +11,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <direct.h>
-#include <windows.h>
-#endif
-
 #include "core_runtime_private.h"
 
 enum {
@@ -31,13 +25,8 @@ enum {
      * though maintained path scratch storage is larger than retail. */
     SYS_LISTFILES_MAX_RECURSION_DEPTH = 128,
     SYS_PROCESSOR_X86 = 1,
-#if defined(_WIN32)
-    /* Retail Win32 startup selects x87 double precision (_PC_53). */
-    SYS_FRAME_X87_CONTROL_WORD = 0x127f
-#else
     /* The recovered Linux frame loop reloads x87 extended precision. */
     SYS_FRAME_X87_CONTROL_WORD = 0x137f
-#endif
 };
 
 #define SYS_PROCESS_HAS_X87_INLINE_ASM CODUO_ENGINE_HAS_X87_INLINE_ASM
@@ -51,9 +40,7 @@ static char sys_installPath[MAX_OSPATH];
 static char sys_basePath[MAX_OSPATH];
 static char sys_homePath[MAX_OSPATH];
 static const char sys_emptyPath[] = "";
-#if !defined(_WIN32)
 static uid_t sys_effectiveUid;
-#endif
 #if SYS_PROCESS_HAS_X87_INLINE_ASM
 static const uint16_t sys_frameX87ControlWord = SYS_FRAME_X87_CONTROL_WORD;
 #endif
@@ -132,23 +119,6 @@ void Sys_Chmod(const char *path, uint32_t mode)
 
 void Sys_StartProcessNow(const char *command)
 {
-#if defined(_WIN32)
-    /* NOT_FROM_ORIGINAL_SOURCE: Win32 process-launch adaptation for MinGW. */
-    STARTUPINFOA startupInfo;
-    PROCESS_INFORMATION processInfo;
-    char commandLine[SYS_DELAYED_PROCESS_COMMAND_SIZE];
-
-    memset(&startupInfo, 0, sizeof(startupInfo));
-    startupInfo.cb = sizeof(startupInfo);
-    memset(&processInfo, 0, sizeof(processInfo));
-    Q_strncpyz(commandLine, command, sizeof(commandLine));
-
-    if (CreateProcessA(NULL, commandLine, NULL, NULL, FALSE, 0, NULL, NULL,
-                       &startupInfo, &processInfo) != 0) {
-        CloseHandle(processInfo.hThread);
-        CloseHandle(processInfo.hProcess);
-    }
-#else
     pid_t pid = fork();
 
     if (pid == -1 || pid != 0) {
@@ -162,7 +132,6 @@ void Sys_StartProcessNow(const char *command)
     }
 
     _exit(0);
-#endif
 }
 
 void Sys_StartProcess(const char *command, qboolean delayUntilFinalExit)
@@ -192,11 +161,7 @@ const char *Sys_Cwd(void)
 
 void Sys_Mkdir(char *path)
 {
-#if defined(_WIN32)
-    _mkdir(path);
-#else
     mkdir(path, SYS_HOME_DIR_MODE);
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: carries recursion depth without changing the
@@ -357,17 +322,10 @@ char **Sys_ListFiles(const char *directory, const char *extension,
 void Sys_OpenURL(const char *url, qboolean delayUntilFinalExit)
 {
     char command[MAX_STRING_CHARS];
-#if !defined(_WIN32)
     char scriptPath[MAX_OSPATH];
     char scriptName[SYS_OPENURL_SCRIPT_NAME_SIZE];
-#endif
 
     Com_Printf("Sys_OpenURL %s\n", url);
-#if defined(_WIN32)
-    Com_sprintf(command, sizeof(command), "cmd.exe /c start \"\" \"%s\"",
-                url);
-    Sys_StartProcess(command, delayUntilFinalExit);
-#else
     Q_strncpyz(scriptName, "openurl.sh", SYS_OPENURL_SCRIPT_NAME_SIZE);
 
     Com_sprintf(scriptPath, sizeof(scriptPath), "%s/%s", Sys_Cwd(),
@@ -400,7 +358,6 @@ void Sys_OpenURL(const char *url, qboolean delayUntilFinalExit)
     }
     Com_sprintf(command, sizeof(command), "%s '%s' &", scriptPath, url);
     Sys_StartProcess(command, delayUntilFinalExit);
-#endif
 }
 
 void Sys_ParseArgs(int argc, char **argv)
@@ -414,15 +371,10 @@ void Sys_ParseArgs(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-#if !defined(_WIN32)
     sys_effectiveUid = geteuid();
     seteuid(getuid());
-#endif
     Sys_ParseArgs(argc, argv);
     Sys_SetDefaultCDPath("");
-#if defined(_WIN32)
-    Sys_CheckCrashOrRerun();
-#endif
 
     int32_t commandLineSize = 1;
     for (int32_t index = 1; index < argc; ++index) {
@@ -446,21 +398,15 @@ int main(int argc, char **argv)
     NET_Init();
     Sys_InitTerminalConsole();
 
-#if !defined(_WIN32)
     int flags = fcntl(SYS_STDIN_FILE_DESCRIPTOR, SYS_F_GETFL_COMMAND,
                       SYS_F_GETFL_UNUSED_ARGUMENT);
     fcntl(SYS_STDIN_FILE_DESCRIPTOR, SYS_F_SETFL_COMMAND,
           flags | SYS_LINUX_O_NONBLOCK);
-#endif
 
     PB_StartServer();
     for (;;) {
         Sys_CheckCrashOrRerun();
-#if defined(_WIN32)
-        Sleep(SYS_MAIN_LOOP_SLEEP_USECS / 1000);
-#else
         usleep(SYS_MAIN_LOOP_SLEEP_USECS);
-#endif
         Com_Frame();
         PB_RunServerFrame();
     }
@@ -526,26 +472,14 @@ const char *Sys_DefaultHomePath(void)
         return sys_homePath;
     }
 
-#if defined(_WIN32)
-    home = getenv("APPDATA");
-    if (home == NULL) {
-        home = getenv("USERPROFILE");
-    }
-#else
     home = getenv("HOME");
-#endif
     if (home == NULL) {
         return sys_emptyPath;
     }
 
     Q_strncpyz(sys_homePath, home, sizeof(sys_homePath));
-#if defined(_WIN32)
-    Q_strcat(sys_homePath, sizeof(sys_homePath), "/Call of Duty");
-    if (_mkdir(sys_homePath) != 0 && errno != EEXIST) {
-#else
     Q_strcat(sys_homePath, sizeof(sys_homePath), "/.callofduty");
     if (mkdir(sys_homePath, SYS_HOME_DIR_MODE) != 0 && errno != EEXIST) {
-#endif
         int *errorLocationForNumber = &errno;
         int32_t errorForText = errno;
         const char *errorText = strerror(errorForText);

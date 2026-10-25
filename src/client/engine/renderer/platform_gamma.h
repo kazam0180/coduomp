@@ -13,8 +13,6 @@ qboolean coduomp_gamma_texture_fallback_enabled_compat(void);
 
 qboolean coduomp_gamma_output_available(void);
 
-#if !defined(_WIN32)
 void coduomp_gamma_window_focus_changed(qboolean active);
-#endif
 
 #endif

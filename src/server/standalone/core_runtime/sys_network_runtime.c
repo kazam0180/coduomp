@@ -2,27 +2,17 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#if !defined(_WIN32)
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-#endif
 #include <sys/time.h>
-#if !defined(_WIN32)
 #include <unistd.h>
-#endif
 
 #include "core_runtime_private.h"
 #include "compat/coduo_native_x87.h"
@@ -45,16 +35,6 @@ enum {
     SYS_NET_SELECT_USECS_PER_MSEC = 1000,
 };
 
-#if defined(_WIN32)
-typedef SOCKET coduo_socket_handle_t;
-typedef int coduo_socket_length_t;
-typedef int coduo_socket_receive_count_t;
-#define CODUO_SOCKET_ERROR_RESULT SOCKET_ERROR
-#define CODUO_SOCKET_LAST_ERROR() WSAGetLastError()
-#define CODUO_SOCKET_WOULD_BLOCK WSAEWOULDBLOCK
-#define CODUO_SOCKET_CONNECTION_REFUSED WSAECONNREFUSED
-#define CODUO_CLOSE_SOCKET(socketHandle) closesocket((SOCKET)(socketHandle))
-#else
 typedef int32_t coduo_socket_handle_t;
 typedef socklen_t coduo_socket_length_t;
 typedef ssize_t coduo_socket_receive_count_t;
@@ -63,7 +43,6 @@ typedef ssize_t coduo_socket_receive_count_t;
 #define CODUO_SOCKET_WOULD_BLOCK EAGAIN
 #define CODUO_SOCKET_CONNECTION_REFUSED ECONNREFUSED
 #define CODUO_CLOSE_SOCKET(socketHandle) close(socketHandle)
-#endif
 
 coduo_socket_handle_t sys_ipSocket;
 coduo_socket_handle_t sys_ipxSocket;
@@ -73,9 +52,6 @@ static uint8_t sys_localIP[SYS_NET_LOCAL_IP_LIMIT][sizeof(((netadr_t *)0)->ip)];
 
 static int32_t sys_timeBaseSeconds;
 static int32_t sys_lastMilliseconds;
-#if defined(_WIN32)
-static qboolean sys_winsockInitialized;
-#endif
 
 coduo_socket_handle_t Sys_OpenIPSocket(const char *netInterface,
                                        int32_t port);
@@ -375,17 +351,6 @@ void NET_OpenIP(void)
 
 void NET_Init(void)
 {
-#if defined(_WIN32)
-    if (sys_winsockInitialized == qfalse) {
-        WSADATA winsockData;
-        int winsockResult = WSAStartup(MAKEWORD(2, 2), &winsockData);
-
-        if (winsockResult != 0) {
-            Com_Error(0, "Winsock initialization failed: %d", winsockResult);
-        }
-        sys_winsockInitialized = qtrue;
-    }
-#endif
     noudp = Cvar_Get("net_noudp", "0", 0);
     if (noudp->value == 0.0f && sys_ipSocket == 0) {
         NET_OpenIP();
@@ -397,11 +362,7 @@ coduo_socket_handle_t Sys_OpenIPSocket(const char *netInterface,
 {
     struct sockaddr_in address;
     int32_t enabled = SYS_NET_SOCKET_OPTION_ENABLED;
-#if defined(_WIN32)
-    u_long nonblocking = SYS_NET_SOCKET_OPTION_ENABLED;
-#else
     int32_t nonblocking = SYS_NET_SOCKET_OPTION_ENABLED;
-#endif
 
     if (netInterface == NULL) {
         Com_Printf("Opening IP socket: localhost:%i\n", port);
@@ -409,31 +370,20 @@ coduo_socket_handle_t Sys_OpenIPSocket(const char *netInterface,
         Com_Printf("Opening IP socket: %s:%i\n", netInterface, port);
     }
 
-#if defined(_WIN32)
-    SOCKET socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (socketFd == INVALID_SOCKET) {
-#else
     int32_t socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (socketFd == -1) {
-#endif
         Com_Printf("ERROR: UDP_OpenSocket: socket: %s", NET_ErrorString());
         return 0;
     }
 
-#if !defined(_WIN32)
     /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
     if (socketFd >= FD_SETSIZE) {
         Com_Printf("ERROR: UDP_OpenSocket: descriptor %i exceeds select limit %i\n", socketFd, FD_SETSIZE - 1);
         CODUO_CLOSE_SOCKET(socketFd);
         return 0;
     }
-#endif
 
-#if defined(_WIN32)
-    if (ioctlsocket(socketFd, FIONBIO, &nonblocking) == SOCKET_ERROR) {
-#else
     if (ioctl(socketFd, FIONBIO, &nonblocking) == -1) {
-#endif
         Com_Printf("ERROR: UDP_OpenSocket: ioctl FIONBIO:%s\n",
                    NET_ErrorString());
         /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
@@ -441,13 +391,8 @@ coduo_socket_handle_t Sys_OpenIPSocket(const char *netInterface,
         return 0;
     }
 
-#if defined(_WIN32)
-    if (setsockopt(socketFd, SOL_SOCKET, SO_BROADCAST,
-                   (const char *)&enabled, sizeof(enabled)) == SOCKET_ERROR) {
-#else
     if (setsockopt(socketFd, SOL_SOCKET, SO_BROADCAST, &enabled,
                    sizeof(enabled)) == -1) {
-#endif
         Com_Printf("ERROR: UDP_OpenSocket: setsockopt SO_BROADCAST:%s\n",
                    NET_ErrorString());
         /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
@@ -503,11 +448,9 @@ void NET_Sleep(int32_t msec)
 
     fd_set readSet;
     FD_ZERO(&readSet);
-#if !defined(_WIN32)
     if (sys_stdinActive != 0) {
         FD_SET(STDIN_FILENO, &readSet);
     }
-#endif
     /* Sys_OpenIPSocket rejects POSIX descriptors outside fd_set's domain. */
     FD_SET(sys_ipSocket, &readSet);
 
@@ -520,15 +463,7 @@ void NET_Sleep(int32_t msec)
 
 const char *NET_ErrorString(void)
 {
-#if defined(_WIN32)
-    static char errorText[64];
-
-    snprintf(errorText, sizeof(errorText), "Winsock error %d",
-             WSAGetLastError());
-    return errorText;
-#else
     return strerror(errno);
-#endif
 }
 
 int32_t Sys_Milliseconds(void)

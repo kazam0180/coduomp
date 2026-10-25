@@ -1,4 +1,4 @@
-#if !defined(_WIN32) && !defined(_DEFAULT_SOURCE)
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
 
@@ -18,10 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 
 enum {
     CODUOMP_NAMESPACE_SLUG_LENGTH = 40,
@@ -736,16 +732,6 @@ static qboolean coduomp_namespace_build_safe_child_path(
     if (written <= 0 || written >= MAX_OSPATH)
         return qfalse;
 
-#if defined(_WIN32)
-    const DWORD attributes = GetFileAttributesA(childPath);
-    if (attributes == INVALID_FILE_ATTRIBUTES ||
-        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 ||
-        (wantDirectory != qfalse
-             ? (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0
-             : (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)) {
-        return qfalse;
-    }
-#else
     struct stat status;
     if (lstat(childPath, &status) != 0 || S_ISLNK(status.st_mode) ||
         (wantDirectory != qfalse
@@ -753,7 +739,6 @@ static qboolean coduomp_namespace_build_safe_child_path(
              : S_ISREG(status.st_mode) == 0)) {
         return qfalse;
     }
-#endif
     return qtrue;
 }
 

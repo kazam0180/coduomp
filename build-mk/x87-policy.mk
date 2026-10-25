@@ -16,8 +16,8 @@
 # boundaries even at -O0.  Per-site fidelity is established by the native x87
 # compiler-realization audit in docs/x87-compiler-realization-audit.md; the
 # mod-script smoke suite is a supplemental runtime gate.  The flag is only
-# available with GCC on x86/x86-64 (and MinGW on Windows). clang does not
-# implement it; non-x86 architectures (e.g. Apple Silicon / ARM) have no x87
+# available with GCC on x86/x86-64. clang does not
+# implement it; non-x86 architectures have no x87
 # unit at all.
 #
 # This policy therefore refuses, by default, to produce a build that cannot use
@@ -92,7 +92,7 @@ behavior on this toolchain (arch '$(X87_POLICY_ARCH)', compiler '$(X87_POLICY_CC
 Float math (notably collision / patch-winding geometry) WILL deviate from the
 reference binary, so this is NOT a bit-exact rebuild.
 
-  For an EXACT rebuild:   use GCC on x86 / x86-64 (or MinGW on Windows).
+  For an EXACT rebuild:   use GCC on x86 / x86-64.
   To build anyway here:   re-run with  CODUO_FP_FAITHFUL=relaxed
                           (acknowledges a not-yet-whole-program-exact build)
 

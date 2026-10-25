@@ -1,6 +1,6 @@
-# CD-key location on macOS and Linux
+# CD-key location on Linux
 
-The native macOS and Linux client stores the primary Call of Duty: United
+The native Linux client stores the primary Call of Duty: United
 Offensive CD key in a file named `codkey`. The filename is lowercase and has no
 extension. It lives directly below the client's writable `fs_homepath`, not in
 the retail `main/` or `uo/` data directory.
@@ -11,14 +11,6 @@ migrating an existing `codkey` file, copy the complete file without printing
 its contents.
 
 ## Default locations
-
-### macOS
-
-```text
-~/Library/Application Support/OpenCoDUO/codkey
-```
-
-### Linux
 
 When `XDG_DATA_HOME` is set to an absolute path:
 
@@ -67,7 +59,7 @@ chmod 600 "/absolute/path/to/codkey"
 
 ## `UO_CODKEY` environment variable
 
-On macOS and Linux, the primary key can instead be supplied through
+On Linux, the primary key can instead be supplied through
 `UO_CODKEY`. Its value must be exactly the same 20-character payload used at
 the beginning of `codkey`: 16 key characters followed immediately by the
 four-character checksum, with no spaces, hyphens, or other separators.
