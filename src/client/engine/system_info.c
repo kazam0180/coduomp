@@ -2,10 +2,6 @@
 
 #include "system_localization.h"
 
-#if defined(_WIN32)
-#include <windows.h>
-#endif
-
 enum {
     SYS_INFO_CVAR_FLAGS = 65,
     SYS_INFO_MEMORY_TOLERANCE_MB = 32,
@@ -24,20 +20,9 @@ static cvar_t *sys_vidMB;  /* original 0x009cf2f0 */
 static qboolean coduomp_show_reconfigure_dialog(const char *body,
                                                 const char *title)
 {
-#if defined(_WIN32)
-    return MessageBoxA(NULL, body, title,
-                       SYS_RECONFIGURE_DIALOG_FLAGS) ==
-                   SYS_DIALOG_RESULT_YES
-               ? qtrue
-               : qfalse;
-#else
-    /* NOT_FROM_ORIGINAL_SOURCE: a native platform question-dialog backend
-     * will replace the Win32 MessageBox operation. Until then, decline the
-     * optional automatic reconfiguration. */
     (void)body;
     (void)title;
     return qfalse;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046a960..0x0046a983, recovered from an executable

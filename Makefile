@@ -1,12 +1,6 @@
 WORKBENCH_DIR ?= .workbench
 BUILD_DIR ?= $(WORKBENCH_DIR)/build
-# Default recursive builds to one compiler job per processor. JOBS=N selects
-# a smaller budget; JOBS=1 (or an empty JOBS) keeps those builds serial.
-JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || printf '%s' "$${NUMBER_OF_PROCESSORS:-1}")
-_JOBS := $(strip $(JOBS))
-ifeq ($(_JOBS),)
-_JOBS := 1
-endif
+JOBS ?=
 CC ?= cc
 CXX ?= c++
 PKG_CONFIG ?= pkg-config
@@ -16,32 +10,17 @@ LINUX32_PKG_CONFIG ?= env PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/u
 LINUX64_CC ?= gcc
 LINUX64_CXX ?= g++
 LINUX64_PKG_CONFIG ?= pkg-config
-MINGW32_CC ?= i686-w64-mingw32-gcc
-MINGW32_CXX ?= i686-w64-mingw32-g++
-MINGW32_DEP_PREFIX ?=
-MINGW64_CC ?= x86_64-w64-mingw32-gcc
-MINGW64_CXX ?= x86_64-w64-mingw32-g++
-MINGW64_DEP_PREFIX ?=
-WINDOWS_DEP_PREFIX ?=
 AUTH ?= 0
 
-# Preserve an inherited jobserver instead of resetting its shared budget.
-# Expand at recipe time, when MAKEFLAGS includes the command-line job options.
-# GNU Make 3.81 also represents unlimited -j in the leading short-option word.
-MAKE_JOBS = $(if $(or $(filter -j% --jobserver%,$(MAKEFLAGS)),$(if $(findstring =,$(firstword $(MAKEFLAGS))),,$(findstring j,$(firstword $(MAKEFLAGS))))),,-j$(_JOBS))
+MAKE_JOBS := $(if $(JOBS),-j $(JOBS),)
 HOST_OS := $(shell uname -s)
 HOST_MACHINE := $(shell uname -m)
 
-ifeq ($(HOST_OS),Darwin)
-CLIENT_NATIVE_EXT := dylib
-CLIENT_NATIVE_ARCH := arm64
-else
 CLIENT_NATIVE_EXT := so
 ifneq ($(filter i386 i486 i586 i686,$(HOST_MACHINE)),)
 CLIENT_NATIVE_ARCH := x86
 else
 CLIENT_NATIVE_ARCH := x86_64
-endif
 endif
 
 AUTH_DISABLE_1 := 0
@@ -60,29 +39,17 @@ CLIENT_ENGINE_OUTPUT := $(CLIENT_NATIVE_DIR)/CoDUOMP
 CLIENT_BASEGAME_DIR := $(CLIENT_NATIVE_DIR)/uo
 CLIENT_CGAME_OUTPUT := $(CLIENT_BASEGAME_DIR)/uo_cgame_mp_$(CLIENT_NATIVE_ARCH).$(CLIENT_NATIVE_EXT)
 CLIENT_UI_OUTPUT := $(CLIENT_BASEGAME_DIR)/uo_ui_mp_$(CLIENT_NATIVE_ARCH).$(CLIENT_NATIVE_EXT)
-# Keep client game objects separate from standalone module output because the
-# launchers stage them under different architecture-specific module names.
-CLIENT_GAME_BUILD_DIR ?= $(BUILD_DIR)/game/client-native-windows
+# Client game modules select Windows behavior even on native Linux.
+# Keep their objects and artifacts separate from Linux-behavior standalone
+# server modules so incremental builds cannot silently reuse the wrong policy.
+CLIENT_GAME_BUILD_DIR ?= $(BUILD_DIR)/game/client-native
 CLIENT_GAME_OUTPUT := $(CLIENT_BASEGAME_DIR)/uo_game_mp_$(CLIENT_NATIVE_ARCH).$(CLIENT_NATIVE_EXT)
 CLIENT_DATA_PATH ?=
 CLIENT_WORK_DIR ?= $(CURDIR)/$(WORKBENCH_DIR)/runtime/client
 CLIENT_TEST_WORK_DIR ?= $(CURDIR)/$(WORKBENCH_DIR)/runtime/client-test
 CLIENT_TEST_HOME_PATH ?= $(CLIENT_TEST_WORK_DIR)/home
 CLIENT_ARGS ?=
-MACOS_APP_DIR ?= $(BUILD_DIR)/macos/OpenCoDUO.app
-MACOS_ZIP ?= $(BUILD_DIR)/macos/opencoduo-macos-arm64.zip
-MACOS_BUNDLE_ID ?= org.opencoduo.coduomp
-MACOS_BUNDLE_VERSION ?= 0.1.0
-MACOS_BUNDLE_BUILD ?= 1
-MACOS_SIGN_IDENTITY ?= -
-WINDOWS_GAME_OUTPUT ?= $(BUILD_DIR)/game/client-windows-i686/uo_game_mp_x86.dll
-WINDOWS64_GAME_OUTPUT ?= $(BUILD_DIR)/game/client-windows-x86_64/uo_game_mp_x86.dll
-# Resolve the default revision once per make process, preserving caller overrides.
-ifeq ($(origin SOURCE_COMMIT),undefined)
-SOURCE_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || printf unknown)
-endif
-WINDOWS_PACKAGE_OUTPUT ?= $(BUILD_DIR)/windows/opencoduo-windows-i686-$(shell printf '%s' "$(SOURCE_COMMIT)" | cut -c1-9).zip
-WINDOWS64_PACKAGE_OUTPUT ?= $(BUILD_DIR)/windows/opencoduo-windows-x86_64-$(shell printf '%s' "$(SOURCE_COMMIT)" | cut -c1-9).zip
+SOURCE_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || printf unknown)
 LINUX32_CLIENT_DIR ?= $(BUILD_DIR)/client/linux-i686
 LINUX64_CLIENT_DIR ?= $(BUILD_DIR)/client/linux-x86_64
 LINUX32_GAME_OUTPUT ?= $(BUILD_DIR)/game/client-linux-i386/uo_game_mp_x86.so
@@ -91,48 +58,43 @@ LINUX32_PACKAGE_OUTPUT ?= $(BUILD_DIR)/linux/opencoduo-linux-i686-$(shell printf
 LINUX64_PACKAGE_OUTPUT ?= $(BUILD_DIR)/linux/opencoduo-linux-x86_64-$(shell printf '%s' "$(SOURCE_COMMIT)" | cut -c1-9).tar.gz
 
 .PHONY: all policy-check client client-engine client-cgame client-ui client-game client-run client-test-run \
-	client-linux32 client-linux64 client-windows client-windows-i686 \
-	client-windows-x86_64 client-linux32-package client-linux64-package \
-	client-windows-package client-windows-i686-package \
-	client-windows-x86_64-package \
+	client-linux32 client-linux64 client-linux32-package client-linux64-package \
 	server server64 server32 server-engine64 server-engine32 \
-	server-game64 server-game32 server-windows server-windows-i386 \
-	server-windows-i686 server-windows-x86_64 check-linux-host check-macos-host \
-	macos-app macos-package-check macos-zip clean help
+	server-game64 server-game32 check-linux-host softfloat \
+	clean help
 
 all: client
 
 policy-check:
 	tools/check-source-policy.sh
 
-ifeq ($(HOST_OS),Darwin)
-CLIENT_PLATFORM_TARGETS := client-game
-endif
+softfloat:
+	$(MAKE) -C vendor/softfloat/build/coduo-x87
 
-client: client-engine client-cgame client-ui $(CLIENT_PLATFORM_TARGETS)
+client: client-engine client-cgame client-ui
 
-client-engine:
+client-engine: softfloat
 	$(MAKE) $(MAKE_JOBS) -f build-mk/client-targets.mk \
 		CC="$(CC)" CXX="$(CXX)" PKG_CONFIG="$(PKG_CONFIG)" \
 		CODUOMP_NATIVE_BUILD_DIR="$(abspath $(CLIENT_NATIVE_DIR))" \
 		CODUOMP_NATIVE_EXECUTABLE="$(abspath $(CLIENT_ENGINE_OUTPUT))" \
 		coduomp-native-link
 
-client-cgame:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/client-targets.mk \
+client-cgame: softfloat
+	$(MAKE) -f build-mk/client-targets.mk \
 		CC="$(CC)" \
 		CLIENT_NATIVE_LIBRARY="$(abspath $(CLIENT_CGAME_OUTPUT))" \
 		client-native-link
 
-client-ui:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/ui.mk \
+client-ui: softfloat
+	$(MAKE) -f build-mk/ui.mk \
 		CC="$(CC)" \
 		NATIVE_LIBRARY="$(abspath $(CLIENT_UI_OUTPUT))" \
 		native-link
 
-client-game: check-macos-host
+client-game: softfloat
 	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		CC="$(CC)" CODUO_FP_FAITHFUL=relaxed \
+		CC="$(CC)" CODUO_BEHAVIOR=windows CODUO_FP_FAITHFUL=relaxed \
 		NATIVE64_SHARED_BUILD_DIR="$(abspath $(CLIENT_GAME_BUILD_DIR))" \
 		NATIVE64_SHARED_TARGET="$(abspath $(CLIENT_GAME_OUTPUT))" \
 		native64-shared
@@ -174,63 +136,21 @@ client-test-run: client
 		+set fs_cdpath "$(CLIENT_DATA_PATH)" $(CLIENT_ARGS) \
 		+set fs_homepath "$(abspath $(CLIENT_TEST_HOME_PATH))"
 
-check-macos-host:
-	@if test "$(HOST_OS)" != Darwin; then \
-		echo 'error: macOS application targets must be built on macOS' >&2; \
-		exit 2; \
-	fi
-
-macos-app: check-macos-host client
-	@case "$(abspath $(MACOS_APP_DIR))" in \
-		"$(abspath $(WORKBENCH_DIR))"/*) ;; \
-		*) echo 'MACOS_APP_DIR must be inside $(abspath $(WORKBENCH_DIR))' >&2; exit 2 ;; \
-	esac
-	@if test -d "$(MACOS_APP_DIR)"; then \
-		rm -r "$(MACOS_APP_DIR)"; \
-	elif test -e "$(MACOS_APP_DIR)"; then \
-		echo 'MACOS_APP_DIR exists and is not a directory' >&2; \
-		exit 2; \
-	fi
-	tools/macos/package-app.sh \
-		"$(abspath $(CLIENT_ENGINE_OUTPUT))" \
-		"$(abspath $(CLIENT_CGAME_OUTPUT))" \
-		"$(abspath $(CLIENT_UI_OUTPUT))" \
-		"$(abspath $(CLIENT_GAME_OUTPUT))" \
-		"$(abspath $(MACOS_APP_DIR))" \
-		"$(abspath packaging/macos/Info.plist)" \
-		"$(MACOS_BUNDLE_ID)" "$(MACOS_BUNDLE_VERSION)" \
-		"$(MACOS_BUNDLE_BUILD)" "$(MACOS_SIGN_IDENTITY)"
-
-macos-package-check: check-macos-host
-	tools/macos/audit-app.sh "$(abspath $(MACOS_APP_DIR))"
-
-macos-zip: macos-app
-	@case "$(abspath $(MACOS_ZIP))" in \
-		"$(abspath $(WORKBENCH_DIR))"/*) ;; \
-		*) echo 'MACOS_ZIP must be inside $(abspath $(WORKBENCH_DIR))' >&2; exit 2 ;; \
-	esac
-	@if test -f "$(MACOS_ZIP)"; then \
-		rm "$(MACOS_ZIP)"; \
-	elif test -e "$(MACOS_ZIP)"; then \
-		echo 'MACOS_ZIP exists and is not a regular file' >&2; \
-		exit 2; \
-	fi
-	tools/macos/create-app-zip.sh \
-		"$(abspath $(MACOS_APP_DIR))" "$(abspath $(MACOS_ZIP))"
-
-client-linux32:
+check-linux-host:
 	@if test "$(HOST_OS)" != Linux; then \
-		echo 'error: client-linux32 must be built on Linux' >&2; \
+		echo 'error: Linux targets must be built on Linux' >&2; \
 		exit 2; \
 	fi
-	$(MAKE) $(MAKE_JOBS) client BUILD_DIR="$(BUILD_DIR)" \
+
+client-linux32: check-linux-host
+	$(MAKE) client BUILD_DIR="$(BUILD_DIR)" \
 		CLIENT_NATIVE_DIR="$(LINUX32_CLIENT_DIR)" \
 		CLIENT_NATIVE_ARCH=x86 CLIENT_NATIVE_EXT=so \
 		CC="$(LINUX32_CC) -m32 -msse" \
 		CXX="$(LINUX32_CXX) -m32 -msse" \
 		PKG_CONFIG="$(LINUX32_PKG_CONFIG)"
 	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		CC="$(LINUX32_CC)" \
+		CC="$(LINUX32_CC)" CODUO_BEHAVIOR=windows \
 		I386_SHARED_BUILD_DIR="$(abspath $(dir $(LINUX32_GAME_OUTPUT)))" \
 		I386_SHARED_TARGET="$(abspath $(LINUX32_GAME_OUTPUT))" shared-i386
 
@@ -239,13 +159,13 @@ client-linux64:
 		echo 'error: client-linux64 must be built on Linux' >&2; \
 		exit 2; \
 	fi
-	$(MAKE) $(MAKE_JOBS) client BUILD_DIR="$(BUILD_DIR)" \
+	$(MAKE) client BUILD_DIR="$(BUILD_DIR)" \
 		CLIENT_NATIVE_DIR="$(LINUX64_CLIENT_DIR)" \
 		CLIENT_NATIVE_ARCH=x86_64 CLIENT_NATIVE_EXT=so \
 		CC="$(LINUX64_CC) -m64" CXX="$(LINUX64_CXX) -m64" \
 		PKG_CONFIG="$(LINUX64_PKG_CONFIG)"
 	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		CC="$(LINUX64_CC)" \
+		CC="$(LINUX64_CC)" CODUO_BEHAVIOR=windows \
 		NATIVE64_SHARED_BUILD_DIR="$(abspath $(dir $(LINUX64_GAME_OUTPUT)))" \
 		NATIVE64_SHARED_TARGET="$(abspath $(LINUX64_GAME_OUTPUT))" native64-shared
 
@@ -266,68 +186,6 @@ client-linux64-package: client-linux64
 		"$(abspath $(LINUX64_GAME_OUTPUT))" \
 		"$(abspath $(LINUX64_PACKAGE_OUTPUT))" \
 		x86_64 x86_64 "$(SOURCE_COMMIT)"
-
-check-linux-host:
-	@if test "$(HOST_OS)" != Linux; then \
-		echo 'error: Linux server targets must be built on Linux' >&2; \
-		exit 2; \
-	fi
-
-client-windows: client-windows-i686 client-windows-x86_64
-
-client-windows-i686:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/client-engine-mingw.mk mingw32 \
-		MINGW32_CC="$(MINGW32_CC)" MINGW32_CXX="$(MINGW32_CXX)" \
-		MINGW32_BUILD_DIR="$(abspath $(BUILD_DIR)/client/windows-i686)" \
-		MINGW32_OUTPUT="$(abspath $(BUILD_DIR)/client/windows-i686/CoDUOMP.exe)" \
-		MINGW32_DEP_PREFIX="$(MINGW32_DEP_PREFIX)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/client-targets.mk client-win32-abi-link \
-		CLIENT_WIN32_CC="$(MINGW32_CC)" \
-		CLIENT_WIN32_LIBRARY="$(abspath $(BUILD_DIR)/client/windows-i686/uo_cgame_mp_x86.dll)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/ui.mk win32-abi-link \
-		WIN32_CC="$(MINGW32_CC)" \
-		WIN32_LIBRARY="$(abspath $(BUILD_DIR)/client/windows-i686/uo_ui_mp_x86.dll)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk windows-i686 \
-		MINGW32_CC="$(MINGW32_CC)" \
-		WINDOWS_I686_BUILD_DIR="$(abspath $(dir $(WINDOWS_GAME_OUTPUT)))" \
-		WINDOWS_I686_TARGET="$(abspath $(WINDOWS_GAME_OUTPUT))"
-
-client-windows-x86_64:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/client-engine-mingw.mk mingw64 \
-		MINGW64_CC="$(MINGW64_CC)" MINGW64_CXX="$(MINGW64_CXX)" \
-		MINGW64_BUILD_DIR="$(abspath $(BUILD_DIR)/client/windows-x86_64)" \
-		MINGW64_OUTPUT="$(abspath $(BUILD_DIR)/client/windows-x86_64/CoDUOMP.exe)" \
-		MINGW64_DEP_PREFIX="$(MINGW64_DEP_PREFIX)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/client-targets.mk client-windows-cross-link \
-		CLIENT_WINDOWS_CC="$(MINGW64_CC)" \
-		CLIENT_WINDOWS_LIBRARY="$(abspath $(BUILD_DIR)/client/windows-x86_64/uo_cgame_mp_x86.dll)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/ui.mk windows-cross-link \
-		WINDOWS_CC="$(MINGW64_CC)" \
-		WINDOWS_LIBRARY="$(abspath $(BUILD_DIR)/client/windows-x86_64/uo_ui_mp_x86.dll)"
-	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk windows-x86_64 \
-		MINGW64_CC="$(MINGW64_CC)" \
-		WINDOWS_X86_64_BUILD_DIR="$(abspath $(dir $(WINDOWS64_GAME_OUTPUT)))" \
-		WINDOWS_X86_64_TARGET="$(abspath $(WINDOWS64_GAME_OUTPUT))"
-
-client-windows-package: client-windows-i686-package
-
-client-windows-i686-package: client-windows-i686
-	tools/windows/package-client.sh \
-		"$(abspath $(BUILD_DIR)/client/windows-i686/CoDUOMP.exe)" \
-		"$(abspath $(BUILD_DIR)/client/windows-i686/uo_cgame_mp_x86.dll)" \
-		"$(abspath $(BUILD_DIR)/client/windows-i686/uo_ui_mp_x86.dll)" \
-		"$(abspath $(WINDOWS_GAME_OUTPUT))" \
-		"$(abspath $(WINDOWS_PACKAGE_OUTPUT))" \
-		i686 "$(SOURCE_COMMIT)"
-
-client-windows-x86_64-package: client-windows-x86_64
-	tools/windows/package-client.sh \
-		"$(abspath $(BUILD_DIR)/client/windows-x86_64/CoDUOMP.exe)" \
-		"$(abspath $(BUILD_DIR)/client/windows-x86_64/uo_cgame_mp_x86.dll)" \
-		"$(abspath $(BUILD_DIR)/client/windows-x86_64/uo_ui_mp_x86.dll)" \
-		"$(abspath $(WINDOWS64_GAME_OUTPUT))" \
-		"$(abspath $(WINDOWS64_PACKAGE_OUTPUT))" \
-		x86_64 "$(SOURCE_COMMIT)"
 
 server: server64
 
@@ -354,38 +212,6 @@ server-game32: check-linux-host
 	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
 		I386_SHARED_BUILD_DIR="$(BUILD_DIR)/game/linux-i386" shared-i386
 
-server-windows: server-windows-i686 server-windows-x86_64
-
-server-windows-i386:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/server.mk \
-		CODUO_DISABLE_SERVER_AUTH=$(AUTH_DISABLE) \
-		MINGW32_CC="$(MINGW32_CC)" MINGW32_CXX="$(MINGW32_CXX)" \
-		WINDOWS_DEP_PREFIX="$(if $(WINDOWS_DEP_PREFIX),$(WINDOWS_DEP_PREFIX),$(MINGW32_DEP_PREFIX))" \
-		WINDOWS_I386_BUILD_DIR="$(BUILD_DIR)/server/windows-i386" windows-i386
-	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		MINGW32_CC="$(MINGW32_CC)" \
-		WINDOWS_I386_BUILD_DIR="$(BUILD_DIR)/game/windows-i386" windows-i386
-
-server-windows-i686:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/server.mk \
-		CODUO_DISABLE_SERVER_AUTH=$(AUTH_DISABLE) \
-		MINGW32_CC="$(MINGW32_CC)" MINGW32_CXX="$(MINGW32_CXX)" \
-		WINDOWS_DEP_PREFIX="$(if $(WINDOWS_DEP_PREFIX),$(WINDOWS_DEP_PREFIX),$(MINGW32_DEP_PREFIX))" \
-		WINDOWS_I686_BUILD_DIR="$(BUILD_DIR)/server/windows-i686" windows-i686
-	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		MINGW32_CC="$(MINGW32_CC)" \
-		WINDOWS_I686_BUILD_DIR="$(BUILD_DIR)/game/windows-i686" windows-i686
-
-server-windows-x86_64:
-	$(MAKE) $(MAKE_JOBS) -f build-mk/server.mk \
-		CODUO_DISABLE_SERVER_AUTH=$(AUTH_DISABLE) \
-		MINGW64_CC="$(MINGW64_CC)" MINGW64_CXX="$(MINGW64_CXX)" \
-		WINDOWS64_DEP_PREFIX="$(MINGW64_DEP_PREFIX)" \
-		WINDOWS_X86_64_BUILD_DIR="$(BUILD_DIR)/server/windows-x86_64" windows-x86_64
-	$(MAKE) $(MAKE_JOBS) -f build-mk/game.mk \
-		MINGW64_CC="$(MINGW64_CC)" \
-		WINDOWS_X86_64_BUILD_DIR="$(BUILD_DIR)/game/windows-x86_64" windows-x86_64
-
 clean:
 	@case "$(abspath $(BUILD_DIR))" in \
 		"$(abspath $(WORKBENCH_DIR))"/*) ;; \
@@ -407,27 +233,16 @@ help:
 	@printf '%s\n' \
 	  'Client targets:' \
 	  '  client (default) client-run client-test-run' \
-	  '  client-linux32 client-linux64 client-windows' \
-	  '  client-windows-i686 client-windows-x86_64' \
-	  '  client-linux32-package client-linux64-package client-windows-package' \
-	  '  client-windows-i686-package client-windows-x86_64-package' \
+	  '  client-linux32 client-linux64' \
+	  '  client-linux32-package client-linux64-package' \
 	  '  client-engine client-cgame client-ui client-game' \
-	  'macOS distribution targets:' \
-	  '  macos-app macos-package-check macos-zip' \
 	  'Server targets:' \
-	  '  server server64 server32 server-windows' \
-	  '  server-windows-i386 server-windows-i686 server-windows-x86_64' \
+	  '  server server64 server32' \
 	  '  server-engine64 server-engine32 server-game64 server-game32' \
 	  'Options:' \
-	  '  WORKBENCH_DIR=path BUILD_DIR=path AUTH=1|0' \
-	  '  JOBS=N sets recursive build jobs (default: processor count; 1 = serial)' \
-	  '  An existing make -jN jobserver takes precedence over JOBS.' \
+	  '  WORKBENCH_DIR=path BUILD_DIR=path JOBS=N AUTH=1|0' \
 	  '  Server CD-key authorization is disabled by default; AUTH=1 enables it.' \
 	  '  CODUO_FP_FAITHFUL=auto|strict|relaxed' \
 	  '  CODUOMP_RENDERER_GPU_PROFILE=1 builds asynchronous renderer GPU timings' \
 	  '  CLIENT_DATA_PATH=/path/to/retail/root CLIENT_ARGS=...' \
-	  '  CLIENT_TEST_WORK_DIR=path CLIENT_TEST_HOME_PATH=path' \
-	  '  MACOS_BUNDLE_VERSION=X.Y.Z MACOS_BUNDLE_BUILD=N' \
-	  '  MACOS_SIGN_IDENTITY=- (ad-hoc default) or Developer ID name' \
-	  '  MINGW32_DEP_PREFIX=/path MINGW64_DEP_PREFIX=/path' \
-	  '  WINDOWS_DEP_PREFIX=/path'
+	  '  CLIENT_TEST_WORK_DIR=path CLIENT_TEST_HOME_PATH=path'

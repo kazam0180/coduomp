@@ -2,19 +2,22 @@
 # Shared x87 floating-point faithfulness policy (engine + game DLL).
 #
 # The original Call of Duty: United Offensive binaries were 32-bit x86 and did
-# evaluated floating-point math on the x87 FPU. Windows is the behavioral
-# authority: its control word selects the precision of PC-sensitive arithmetic;
-# extended exponent range and explicit float/double stores remain distinct.
-# SSE/arm64 can round at different intermediate steps. In collision / patch-
-# winding geometry, that can flip a discrete decision such as adding a bevel.
+# all floating-point math on the x87 FPU (80-bit internal precision, with
+# specific rounding-to-32-bit-float at store points). A modern 64-bit build
+# uses SSE for float math instead, which rounds differently. For most code the
+# difference is a sub-ULP cosmetic drift, but in the collision / patch-winding
+# geometry it can flip a discrete decision (e.g. whether a bevel plane is
+# added), producing a build that is NOT bit-identical to the original and can,
+# in principle, differ in in-game collision behavior.
 #
 # `-mfpmath=387` makes GCC emit x87 float math on x86-64 and is required to
 # reproduce the original evaluation model.  It is necessary but not sufficient:
 # modern GCC can still alter individual opcodes, dependencies, spills, and ABI
 # boundaries even at -O0.  Per-site fidelity is established by the native x87
-# compiler-realization audit; runtime comparison is supplemental. The flag is only
-# available with GCC on x86/x86-64 (and MinGW on Windows). clang does not
-# implement it; non-x86 architectures (e.g. Apple Silicon / ARM) have no x87
+# compiler-realization audit in docs/x87-compiler-realization-audit.md; the
+# mod-script smoke suite is a supplemental runtime gate.  The flag is only
+# available with GCC on x86/x86-64. clang does not
+# implement it; non-x86 architectures have no x87
 # unit at all.
 #
 # This policy therefore refuses, by default, to produce a build that cannot use
@@ -33,12 +36,13 @@
 #
 # User-facing knob:
 #   CODUO_FP_FAITHFUL = auto (default) | strict | relaxed
-#     auto    : require the supported native-x87 configuration or hard-error.
-#     strict  : the same capability requirement; not a whole-program proof.
-#     relaxed : permit native SSE / arm64 arithmetic. Wide C intermediates and
-#               explicit rounding boundaries remain; software x87 is unsupported.
+#     auto    : be bit-exact if this toolchain can; otherwise hard-error.
+#     strict  : require bit-exact; hard-error if this toolchain cannot.
+#     relaxed : permit a build without whole-program native x87. Consumers may
+#               select EMULATE_X87 source bodies, but any remaining plain C uses
+#               SSE / native arm64 FP, so this is not yet a bit-exact rebuild.
 #
-# See docs/client-building.md for the full explanation.
+# See docs/fp-faithfulness.md for the full explanation.
 # ---------------------------------------------------------------------------
 
 CODUO_FP_FAITHFUL ?= auto
@@ -55,8 +59,8 @@ X87_POLICY_MFPMATH_OK := $(shell printf 'int main(void){return 0;}' \
 	| $(X87_POLICY_CC) -mfpmath=387 -x c - -c -o /dev/null >/dev/null 2>&1 \
 	&& echo yes)
 
-# The supported 32-bit x86 configuration uses native x87 by default.
-# This architecture test does not prove individual emitted operation graphs.
+# A 32-bit x86 build already uses x87 for everything, so -mfpmath=387 is a
+# no-op there and faithfulness is automatic regardless of compiler.
 ifeq ($(filter i386 i486 i586 i686,$(X87_POLICY_ARCH)),)
 X87_POLICY_IS_I386 := 0
 else
@@ -65,7 +69,7 @@ endif
 
 # Two independent outputs:
 #
-#   X87_FLOAT_FLAGS    -> `-mfpmath=387` for the native-x87 configuration
+#   X87_FLOAT_FLAGS    -> `-mfpmath=387` when we can & want a bit-exact build
 #                         (the collision/patch-winding fix). Empty otherwise.
 #
 #   X87_ALLOW_CPPFLAGS -> `-DCODUO_ENGINE_ALLOW_NON_X87_FLOAT=1`. This enables
@@ -88,18 +92,18 @@ behavior on this toolchain (arch '$(X87_POLICY_ARCH)', compiler '$(X87_POLICY_CC
 Float math (notably collision / patch-winding geometry) WILL deviate from the
 reference binary, so this is NOT a bit-exact rebuild.
 
-  For native x87:         use GCC on x86 / x86-64 (or MinGW on Windows).
+  For an EXACT rebuild:   use GCC on x86 / x86-64.
   To build anyway here:   re-run with  CODUO_FP_FAITHFUL=relaxed
                           (acknowledges a not-yet-whole-program-exact build)
 
-See docs/client-building.md for details.
+See docs/fp-faithfulness.md for details.
 endef
 
-# The faithful modes select native x87 for ordinary floating-point expressions.
+# The faithful modes add -mfpmath=387 to make the plain-C float math x87-exact.
 # A 32-bit x86 target is already all-x87, so the flag is unnecessary there.
 ifeq ($(CODUO_FP_FAITHFUL),relaxed)
-  # Acknowledged non-exact build: leave X87_FLOAT_FLAGS empty and use the
-  # compiler's native floating-point types and instruction set.
+  # Acknowledged non-exact build: leave X87_FLOAT_FLAGS empty. The consumer may
+  # enable EMULATE_X87 bodies; all other arithmetic remains SSE/native arm64 FP.
 else ifeq ($(filter-out auto strict,$(CODUO_FP_FAITHFUL)),)
   # -fexcess-precision=fast: the original was built by a compiler that rounds
   # each float assignment to 32 bits (the traditional / pre-C99 behavior). With
@@ -108,15 +112,16 @@ else ifeq ($(filter-out auto strict,$(CODUO_FP_FAITHFUL)),)
   # narrows at an observable point — so a `float f = <double expr>; ... f - k`
   # subtracts the 80-bit value, not the stored float. That diverges from stock by
   # 1 ULP on round-to-even ties (found in the capsule trace, where sqrt() yields
-  # a double). `fast` restores stock's per-assignment rounding for this graph.
+  # a double). `fast` restores stock's per-assignment rounding. (The EMULATE_X87
+  # build is unaffected: it rounds explicitly at every store via x87f_store_f32.)
   # -O0 is FORCED on the faithful native x87 build: at -O2 the compiler keeps a
   # named `float` local live in an 80-bit x87 register instead of narrowing it to
   # float32 at the assignment, so the recon's float-spill points (which encode
   # stock's rounding) are not honored and the build diverges from stock. -O0
   # spills every local, restoring the narrowing. Verified on the game_mp_uo
   # common_math differential harness; see docs/x87-O0-required-O2-excess-precision.md.
-  # Explicit volatile stores remain necessary where a particular narrowing
-  # point must survive independently of local-variable allocation.
+  # (The EMULATE_X87 / shipped build is -O-independent — it rounds explicitly via
+  # x87f_store_f32 — so it is NOT pinned here and can be optimized.)
   ifeq ($(X87_POLICY_IS_I386),1)
     # 32-bit x86 is x87 already; still needs fast for per-assignment rounding.
     X87_FLOAT_FLAGS := -O0 -fexcess-precision=fast

@@ -506,16 +506,10 @@ void GfxInfo_f(void)
         ri.Printf(R_PRINT_ALL, "none\n");
         break;
     case R_PRIMITIVES_AUTOMATIC:
-#if defined(__APPLE__) && defined(__aarch64__)
-        /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): report the native
-         * automatic-mode adaptation implemented in R_DrawElements. */
-        ri.Printf(R_PRINT_ALL, "single glDrawElements\n");
-#else
         ri.Printf(R_PRINT_ALL,
                   qglLockArraysEXT != NULL
                       ? "single glDrawElements\n"
                       : "multiple glArrayElement\n");
-#endif
         break;
     case R_PRIMITIVES_ARRAY_ELEMENTS:
         ri.Printf(R_PRINT_ALL, "multiple glArrayElement\n");

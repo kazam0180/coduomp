@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__linux__) && !defined(_WIN32)
+#if defined(__linux__)
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #endif
@@ -212,7 +212,7 @@ void coduomp_output_gamma_set_lut_compat(
     }
 }
 
-#if defined(__linux__) && !defined(_WIN32)
+#if defined(__linux__)
 
 typedef struct coduomp_xrandr_gamma_api_s {
     void *xrandrLibrary;
@@ -770,7 +770,7 @@ qboolean coduomp_capture_presented_frame_compat(
  * resources before the platform destroys the current window/context. */
 void coduomp_output_gamma_shutdown_compat(void)
 {
-#if defined(__linux__) && !defined(_WIN32)
+#if defined(__linux__)
     coduomp_output_gamma_restore_xrandr_compat();
     coduomp_output_gamma_unload_xrandr_compat();
 #endif

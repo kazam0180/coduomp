@@ -14,12 +14,11 @@ make client \
   CODUOMP_RENDERER_GPU_PROFILE=1
 ```
 
-The flag is supported by the native client-engine build and the MinGW client
-engine builds. Modes 1 and 2 additionally require the OpenGL driver to expose
-`GL_ARB_timer_query` or `GL_EXT_timer_query` and the associated query entry
-points. The client prints a warning and leaves those modes inactive when the
-entry points are unavailable. CPU-only mode 3 does not use OpenGL timer
-queries.
+The flag is supported by the native client-engine build. Modes 1 and 2
+additionally require the OpenGL driver to expose `GL_ARB_timer_query` or
+`GL_EXT_timer_query` and the associated query entry points. The client prints
+a warning and leaves those modes inactive when the entry points are
+unavailable. CPU-only mode 3 does not use OpenGL timer queries.
 
 ## Running a capture
 
@@ -67,12 +66,6 @@ Timer results are polled asynchronously. The render thread does not wait for a
 query result; a full query or delayed-frame pool produces dropped samples
 instead of a GPU synchronization stall. Check `dropped=0` before treating a
 GPU capture as complete.
-
-On Apple's OpenGL implementation, even asynchronous timer-query scopes can
-perturb command submission and produce long stalls that do not occur in mode
-3. Do not use modes 1 or 2 to judge ordinary frame stability on macOS. First
-locate a wall-clock problem with mode 3, then use a short mode-1 or mode-2
-capture only when GPU attribution is still necessary.
 
 ## Reading the log
 

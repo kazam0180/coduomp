@@ -9,11 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#if defined(_WIN32)
-#include <windows.h>
-#else
 #include <time.h>
-#endif
 
 enum {
     CODUOMP_GPU_PROFILE_QUERY_CAPACITY = 4096,
@@ -191,23 +187,10 @@ static uint64_t coduompGpuProfileCpuSegmentStartNanoseconds;
  * the compiler-gated diagnostic without narrowing measurements to milliseconds. */
 static uint64_t coduomp_gpu_profile_cpu_nanoseconds(void)
 {
-#if defined(_WIN32)
-    LARGE_INTEGER counter;
-    static LARGE_INTEGER frequency;
-
-    if (frequency.QuadPart == 0 &&
-        QueryPerformanceFrequency(&frequency) == 0) {
-        return 0;
-    }
-    QueryPerformanceCounter(&counter);
-    return (uint64_t)(((long double)counter.QuadPart * 1000000000.0L) /
-                      (long double)frequency.QuadPart);
-#else
     struct timespec now;
 
     (void)clock_gettime(CLOCK_MONOTONIC, &now);
     return (uint64_t)now.tv_sec * 1000000000u + (uint64_t)now.tv_nsec;
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: open one host-file diagnostic log below

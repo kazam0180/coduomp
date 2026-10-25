@@ -15,7 +15,7 @@
 #include "game_globals.h"
 #include "scr_vm.h"
 
-#if defined(__i386__) && !defined(_WIN32)
+#if defined(__i386__)
 #define TRAP_SAVE_EBX() __asm__ volatile("pushl %%ebx" ::: "memory")
 #define TRAP_RESTORE_EBX() __asm__ volatile("popl %%ebx" ::: "memory")
 #else

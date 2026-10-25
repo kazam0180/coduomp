@@ -1,4 +1,4 @@
-.PHONY: client-native-link client-windows-cross-link client-win32-abi-link \
+.PHONY: client-native-link \
 	coduomp-native-link
 
 include build-mk/sources/cgame.mk
@@ -172,6 +172,10 @@ CLIENT_ALL_C_SOURCES := $(CLIENT_C_SOURCES) $(CLIENT_SHARED_QCOMMON_C_SOURCES) \
 	$(SHARED_CLIENT_COMMON_C_SOURCES) \
 	$(CLIENT_SHARED_BG_C_SOURCES) \
 	$(CLIENT_SHARED_UI_C_SOURCES)
+# Client targets use native floating-point arithmetic.  Set this at the
+# compile boundary because shared translation units can include the generic
+# platform policy before a client-owned umbrella header establishes it.
+override CLIENT_FP_CPPFLAGS := -DEMULATE_X87=0
 CLIENT_INCLUDE_FLAGS := -iquote src/client/cgame/bindings \
 	-iquote src/qcommon/bindings/default \
 	-Isrc
@@ -183,11 +187,6 @@ CLIENT_C_TYPE_ERRORS := -Werror=implicit-int \
 	-Werror=incompatible-pointer-types \
 	-Werror=int-conversion -Werror=return-type
 CLIENT_WARNING_FLAGS := -Wall -Wextra -Werror
-CLIENT_WINDOWS_CC ?= x86_64-w64-mingw32-gcc
-CLIENT_WIN32_CC ?= i686-w64-mingw32-gcc
-CLIENT_WINDOWS_DEF := build-mk/abi/cgame/uo_cgame_mp_x86.def
-CLIENT_WINDOWS_LIBRARY ?= .workbench/build/cgame/windows-x86_64/uo_cgame_mp_x86.dll
-CLIENT_WIN32_LIBRARY ?= .workbench/build/cgame/windows-i686/uo_cgame_mp_x86.dll
 SHARED_QCOMMON_DIR := src/qcommon
 SHARED_QCOMMON_C_SOURCES := $(SHARED_QCOMMON_DIR)/com_parse.c \
 	$(SHARED_QCOMMON_DIR)/com_memory.c \
@@ -251,13 +250,19 @@ SHARED_SERVER_C_SOURCES := $(LAYOUT_SERVER_ENGINE_C_SOURCES)
 SHARED_SCRIPT_DIR := src/scripting
 SHARED_SCRIPT_C_SOURCES := $(LAYOUT_SCRIPT_C_SOURCES)
 SHARED_SCRIPT_CXX_SOURCES := $(LAYOUT_SCRIPT_CXX_SOURCES)
+CODUO_DEFAULT_BEHAVIOR := windows
+# The retail client and its embedded server are one Windows executable. Do not
+# permit a command-line override to compile shared server code as Linux inside
+# a client build.
+override CODUO_BEHAVIOR := windows
+include build-mk/platform-behavior.mk
 RECOVERY_POLICY_CPPFLAGS :=
 AUDIO_BACKEND_CPPFLAGS := -DAUDIO_BACKEND_MINIAUDIO \
 	-DAUDIO_BACKEND_OPENAL
 CODUOMP_C_SOURCES := $(CLIENT_ENGINE_C_SOURCES)
 CODUOMP_CXX_SOURCES := $(CLIENT_ENGINE_CXX_SOURCES)
-CODUOMP_WINDOWS_GENERATED_DIR := src/scripting/generated/windows
-CODUOMP_WINDOWS_GENERATED_C_SOURCES := $(LAYOUT_WINDOWS_GENERATED_C_SOURCES)
+CODUOMP_CLIENT_GENERATED_DIR := src/scripting/generated/client
+CODUOMP_CLIENT_GENERATED_C_SOURCES := $(LAYOUT_CLIENT_GENERATED_C_SOURCES)
 CODUOMP_JPEG_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags libjpeg 2>/dev/null)
 CODUOMP_JPEG_LIBS ?= $(shell $(PKG_CONFIG) --libs libjpeg 2>/dev/null)
 CODUOMP_SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 2>/dev/null)
@@ -266,29 +271,14 @@ CODUOMP_CURL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags libcurl 2>/dev/null)
 CODUOMP_CURL_LIBS ?= $(shell $(PKG_CONFIG) --libs libcurl 2>/dev/null)
 CODUOMP_MINIZIP_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags minizip 2>/dev/null)
 CODUOMP_MINIZIP_LIBS ?= $(shell $(PKG_CONFIG) --libs minizip 2>/dev/null)
-ifeq ($(shell uname -s),Darwin)
-CODUOMP_NATIVE_PLATFORM_LIBS := -framework OpenGL -framework CoreGraphics \
-	-framework AppKit -framework Foundation
-CODUOMP_NATIVE_PLATFORM_LIBS += -framework OpenAL -framework AudioToolbox \
-	-framework CoreAudio -framework AudioUnit -framework CoreFoundation
-CODUOMP_MACOS_OBJC_SOURCES := \
-	src/client/engine/platform/macos_app_bundle.m
-else
 CODUOMP_NATIVE_PLATFORM_LIBS := $(shell $(PKG_CONFIG) --libs openal sndfile 2>/dev/null) -lm -ldl -pthread
-CODUOMP_MACOS_OBJC_SOURCES :=
-endif
 CODUOMP_NATIVE_WIDTH_WARNINGS := -Wshorten-64-to-32 \
 	-Wpointer-to-int-cast -Wint-to-pointer-cast
 CODUOMP_INTEGER_FLAGS := -fwrapv
 # The original i386 renderer evaluates x87 multiply/add/subtract instructions
-# separately.  Apple Clang contracts even -O0 expressions by default, which
-# otherwise turns recovered operation graphs into arm64 FMADD/FMSUB sequences.
+# separately.
 CODUOMP_FLOAT_FLAGS := -ffp-contract=off
-# Keep tentative globals in normal zero-fill storage.  Darwin ld64 otherwise
-# treats the native renderer's 0xf00098-byte tess global as a large COMMON
-# allocation and requests 32 KiB section alignment, above arm64 Mach-O's
-# 16 KiB segment limit.  This does not change the global's declared alignment,
-# layout, or zero-initialization semantics.
+# Keep tentative globals in normal zero-fill storage.
 CODUOMP_STORAGE_FLAGS := -fno-common
 CODUOMP_NATIVE_BUILD_DIR ?= .workbench/build/client-engine/native
 CODUOMP_NATIVE_EXECUTABLE ?= $(CODUOMP_NATIVE_BUILD_DIR)/CoDUOMP
@@ -298,8 +288,10 @@ CODUOMP_INCLUDE_FLAGS := -Isrc \
 CODUOMP_NATIVE_CFLAGS := -g -O0 $(CODUOMP_INTEGER_FLAGS) \
 	$(CODUOMP_FLOAT_FLAGS) $(CODUOMP_STORAGE_FLAGS) \
 	$(CLIENT_WARNING_FLAGS) \
+	$(CLIENT_FP_CPPFLAGS) \
 	$(RECOVERY_POLICY_CPPFLAGS) \
 	$(AUDIO_BACKEND_CPPFLAGS) \
+	$(PLATFORM_BEHAVIOR_CPPFLAGS) \
 	$(CODUOMP_RENDERER_GPU_PROFILE_CPPFLAGS) \
 	$(CODUOMP_INCLUDE_FLAGS) \
 	$(CODUOMP_JPEG_CFLAGS) $(CODUOMP_SDL_CFLAGS) \
@@ -308,7 +300,7 @@ CODUOMP_NATIVE_CFLAGS := -g -O0 $(CODUOMP_INTEGER_FLAGS) \
 CODUOMP_NATIVE_C_COMPILE_FLAGS := $(CODUOMP_NATIVE_CFLAGS) \
 	$(CLIENT_C_TYPE_ERRORS)
 CODUOMP_NATIVE_C_OBJECTS := $(patsubst src/client/engine/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/%.c.o,$(CODUOMP_C_SOURCES)) \
-	$(patsubst $(CODUOMP_WINDOWS_GENERATED_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/generated-windows/%.c.o,$(CODUOMP_WINDOWS_GENERATED_C_SOURCES)) \
+	$(patsubst $(CODUOMP_CLIENT_GENERATED_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/generated-client/%.c.o,$(CODUOMP_CLIENT_GENERATED_C_SOURCES)) \
 	$(patsubst $(SHARED_CLIENT_COMMON_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/client/common/%.c.o,$(SHARED_CLIENT_COMMON_C_SOURCES)) \
 	$(patsubst $(CLIENT_MODULE_MATH_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/client/math/%.c.o,$(CODUOMP_CLIENT_MATH_C_SOURCES)) \
 	$(patsubst $(SHARED_QCOMMON_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/qcommon/%.c.o,$(SHARED_QCOMMON_C_SOURCES)) \
@@ -322,7 +314,6 @@ CODUOMP_NATIVE_C_OBJECTS := $(patsubst src/client/engine/%.c,$(CODUOMP_NATIVE_BU
 	$(patsubst $(SHARED_SCRIPT_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/scripting/%.c.o,$(SHARED_SCRIPT_C_SOURCES))
 CODUOMP_NATIVE_CXX_OBJECTS := $(patsubst src/client/engine/%.cpp,$(CODUOMP_NATIVE_BUILD_DIR)/%.cpp.o,$(CODUOMP_CXX_SOURCES)) \
 	$(patsubst $(SHARED_SCRIPT_DIR)/%.cpp,$(CODUOMP_NATIVE_BUILD_DIR)/src/scripting/%.cpp.o,$(SHARED_SCRIPT_CXX_SOURCES))
-CODUOMP_NATIVE_OBJC_OBJECTS := $(patsubst src/client/engine/%.m,$(CODUOMP_NATIVE_BUILD_DIR)/%.m.o,$(CODUOMP_MACOS_OBJC_SOURCES))
 CODUOMP_NATIVE_SELECTIVE_O2_C_OBJECTS := \
 	$(patsubst src/client/engine/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/%.c.o,$(filter src/client/engine/%.c,$(CLIENT_ENGINE_SELECTIVE_O2_C_SOURCES))) \
 	$(patsubst $(SHARED_MATH_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/math/%.c.o,$(filter $(SHARED_MATH_DIR)/%.c,$(CLIENT_ENGINE_SELECTIVE_O2_C_SOURCES))) \
@@ -332,36 +323,20 @@ CODUOMP_NATIVE_SELECTIVE_O2_C_OBJECTS := \
 	$(patsubst $(SHARED_SOUND_ALIAS_DIR)/%.c,$(CODUOMP_NATIVE_BUILD_DIR)/src/sound/alias/%.c.o,$(filter $(SHARED_SOUND_ALIAS_DIR)/%.c,$(CLIENT_ENGINE_SELECTIVE_O2_C_SOURCES)))
 $(CODUOMP_NATIVE_SELECTIVE_O2_C_OBJECTS): \
 	CODUOMP_NATIVE_C_OPTIMIZATION_FLAGS := $(CLIENT_ENGINE_SELECTIVE_O2_CFLAGS)
-ifeq ($(shell uname -s),Darwin)
-CLIENT_NATIVE_LIBRARY := .workbench/build/cgame/native/libcoduo_cgame.dylib
-CLIENT_NATIVE_LDFLAGS := -dynamiclib
-else
 CLIENT_NATIVE_LIBRARY := .workbench/build/cgame/native/libcoduo_cgame.so
 CLIENT_NATIVE_LDFLAGS := -shared -Wl,--no-undefined
-endif
-# The original i386 cgame evaluates the recovered view-origin and view-axis
-# multiply/add/subtract graphs as separate x87 instructions.  Apple Clang
-# otherwise contracts those expressions into arm64 FMADD/FMSUB instructions.
 CLIENT_NATIVE_FLOAT_FLAGS := -ffp-contract=off
 client-native-link:
 	@mkdir -p $(dir $(CLIENT_NATIVE_LIBRARY))
-	$(CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(CLIENT_WARNING_FLAGS) $(CLIENT_C_TYPE_ERRORS) -g -O0 $(CLIENT_NATIVE_FLOAT_FLAGS) -fno-common -fPIC -fvisibility=hidden $(CLIENT_INCLUDE_FLAGS) $(CLIENT_ALL_C_SOURCES) $(CLIENT_NATIVE_LDFLAGS) -lm -o $(CLIENT_NATIVE_LIBRARY)
-
-client-windows-cross-link:
-	@mkdir -p $(dir $(CLIENT_WINDOWS_LIBRARY))
-	$(CLIENT_WINDOWS_CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(CLIENT_WARNING_FLAGS) $(CLIENT_C_TYPE_ERRORS) $(CLIENT_INCLUDE_FLAGS) $(CLIENT_ALL_C_SOURCES) -shared -static-libgcc $(CLIENT_WINDOWS_DEF) -Wl,--no-undefined -lm -o $(CLIENT_WINDOWS_LIBRARY)
-
-client-win32-abi-link:
-	@mkdir -p $(dir $(CLIENT_WIN32_LIBRARY))
-	$(CLIENT_WIN32_CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(CLIENT_WARNING_FLAGS) $(CLIENT_C_TYPE_ERRORS) $(CLIENT_INCLUDE_FLAGS) $(CLIENT_ALL_C_SOURCES) -shared -static-libgcc $(CLIENT_WINDOWS_DEF) -Wl,--no-undefined -lm -o $(CLIENT_WIN32_LIBRARY)
+	$(CC) -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) $(PLATFORM_BEHAVIOR_CPPFLAGS) $(CLIENT_WARNING_FLAGS) $(CLIENT_C_TYPE_ERRORS) -g -O0 $(CLIENT_NATIVE_FLOAT_FLAGS) -fno-common -fPIC -fvisibility=hidden $(CLIENT_INCLUDE_FLAGS) $(CLIENT_ALL_C_SOURCES) $(CLIENT_NATIVE_LDFLAGS) -lm -o $(CLIENT_NATIVE_LIBRARY)
 
 # Compiler-policy changes in these files must invalidate existing native
 # objects.  Dependency files cover source/header changes but do not record the
 # command-line flags that produced an object.
 CODUOMP_NATIVE_CONFIG_INPUTS := build-mk/client-targets.mk \
-	build-mk/sources/client-engine.mk
-$(CODUOMP_NATIVE_C_OBJECTS) $(CODUOMP_NATIVE_CXX_OBJECTS) \
-	$(CODUOMP_NATIVE_OBJC_OBJECTS): \
+	build-mk/sources/client-engine.mk \
+	build-mk/platform-behavior.mk
+$(CODUOMP_NATIVE_C_OBJECTS) $(CODUOMP_NATIVE_CXX_OBJECTS): \
 	$(CODUOMP_NATIVE_CONFIG_INPUTS)
 
 $(CODUOMP_NATIVE_BUILD_DIR)/%.c.o: src/client/engine/%.c
@@ -369,7 +344,7 @@ $(CODUOMP_NATIVE_BUILD_DIR)/%.c.o: src/client/engine/%.c
 	$(CC) -std=c11 $(CODUOMP_NATIVE_C_COMPILE_FLAGS) \
 		$(CODUOMP_NATIVE_C_OPTIMIZATION_FLAGS) -c $< -o $@
 
-$(CODUOMP_NATIVE_BUILD_DIR)/generated-windows/%.c.o: $(CODUOMP_WINDOWS_GENERATED_DIR)/%.c
+$(CODUOMP_NATIVE_BUILD_DIR)/generated-client/%.c.o: $(CODUOMP_CLIENT_GENERATED_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -std=c11 $(CODUOMP_NATIVE_C_COMPILE_FLAGS) -c $< -o $@
 

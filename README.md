@@ -41,51 +41,8 @@ See [the branch policy](docs/branch-policy.md) for the exact boundary. Run
 
 ## Build
 
-Select the supported build workflow for your host, target platform, and
-toolchain:
-
-| Build host | Target platform | Supported build system |
-| --- | --- | --- |
-| Linux | Linux client or dedicated server | Make |
-| Apple Silicon macOS | macOS client | Make |
-| Windows | Windows client or dedicated server with MSVC/clang-cl | CMake |
-| Windows or Linux | Windows client or dedicated server with MinGW | Make |
-
-Choose the section for the platform where you are building. A legally owned
-Call of Duty: United Offensive installation is needed to run the client, but
-the retail game files are not part of the source build.
-
-### macOS (Apple Silicon)
-
-Install Apple's Command Line Tools (the full Xcode application also provides
-them):
-
-```sh
-xcode-select --install
-```
-
-Install [Homebrew](https://brew.sh/) if it is not already available, then
-install the remaining dependencies:
-
-```sh
-brew install pkgconf sdl2 jpeg-turbo minizip
-```
-
-`pkgconf` supplies the `pkg-config` command used by the Makefiles. The macOS
-SDK supplies Clang, `make`, libcurl, zlib, and the required system frameworks.
-
-Build the native client executable, cgame, UI, and listen-server game module:
-
-```sh
-make
-```
-
-To create a Finder-launchable application bundle or a distributable ZIP:
-
-```sh
-make macos-app
-make macos-zip
-```
+A legally owned Call of Duty: United Offensive installation is needed to run
+the client, but the retail game files are not part of the source build.
 
 ### Debian or Ubuntu Linux (x86-64)
 
@@ -169,96 +126,9 @@ the x87 options selected by the build. Clang does not implement
 `CODUO_FP_FAITHFUL=relaxed` permits such a build for portability work, but its
 floating-point behavior is not the validated faithful configuration.
 
-Build and package each platform with the targets below and in the
+Build and package with the targets below and in the
 [client build guide](docs/client-building.md). Official release orchestration
 and maintainer privacy checks are separate from these developer targets.
-
-### Parallel builds
-
-Top-level Make targets default to a job budget of one job per detected
-processor. Use `make JOBS=4 <target>` to choose a budget or
-`make JOBS=1 <target>` for a serial build. An existing `make -jN` jobserver
-takes precedence over `JOBS`; recursive builds share its budget. Direct
-`make -f build-mk/...` invocations still need an explicit `-jN`.
-The budget parallelizes independent recipes; the existing cgame/UI rules
-that compile multiple files in one compiler invocation remain serial within
-that invocation.
-
-Package targets resolve `SOURCE_COMMIT` once per Make process. It defaults to
-the checkout's `HEAD`; pass `SOURCE_COMMIT=<revision>` when building an exported
-source archive without Git metadata.
-
-### Windows with MSVC or clang-cl (CMake)
-
-CMake is supported only for native Windows builds with MSVC or clang-cl.
-Follow the [MSVC/clang-cl client guide](docs/client-building.md#windows-with-clang-cl-or-msvc)
-or [dedicated-server guide](docs/server-building.md#windows-with-msvc-or-clang-cl).
-The CMake presets build Windows executables and DLLs.
-
-For Windows CMake builds, the Visual Studio MSVC presets use
-`cmake --build --preset msvc --parallel N` to select the compiler budget. See
-the [Windows client build guide](docs/client-building.md#windows-with-clang-cl-or-msvc)
-for MSVC scheduling and the other Windows CMake configurations.
-
-### Windows with MinGW (Make)
-
-The MinGW targets use GNU Make and GCC. Install
-[MSYS2](https://www.msys2.org/), update it with `pacman -Syu`, and reopen the
-terminal if the update asks you to. Use the terminal matching the package you
-want to build.
-
-For a 64-bit build, open **MSYS2 MINGW64** and install the development tools:
-
-```sh
-pacman -S --needed git make zip mingw-w64-x86_64-toolchain
-```
-
-Build or install static x86-64 Windows libraries for SDL2, libjpeg-turbo,
-libcurl, Minizip, and zlib under one prefix containing `include/` and `lib/`.
-Then build the package from the source checkout:
-
-```sh
-make client-windows-x86_64-package \
-  MINGW64_DEP_PREFIX=/c/path/to/x86_64-prefix
-```
-
-For a 32-bit build, open **MSYS2 MINGW32** and install the development tools:
-
-```sh
-pacman -S --needed git make zip mingw-w64-i686-toolchain
-```
-
-Build the same dependencies for i686 under a separate static prefix. The
-32-bit client also uses `mss32.dll` from a legally owned retail installation.
-Pass both MSYS2 paths when building:
-
-```sh
-make client-windows-i686-package \
-  MSS32_DLL="/c/path/to/Call of Duty/mss32.dll" \
-  MINGW32_DEP_PREFIX=/c/path/to/i686-prefix
-```
-
-### Windows cross-builds from Debian or Ubuntu Linux
-
-Install the 32-bit and 64-bit MinGW-w64 compilers and packaging tools:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y build-essential mingw-w64 pkg-config zip
-```
-
-Both client builds require architecture-matched static builds of SDL2,
-libjpeg-turbo, libcurl, Minizip, and zlib. Put each dependency set under a
-prefix containing `include/` and `lib/`, then build either or both packages:
-
-```sh
-make client-windows-i686-package \
-  MSS32_DLL=/path/to/retail/mss32.dll \
-  MINGW32_DEP_PREFIX=/path/to/i686-prefix
-
-make client-windows-x86_64-package \
-  MINGW64_DEP_PREFIX=/path/to/x86_64-prefix
-```
 
 Generated build, package, and runtime files stay under `.workbench/`. Package
 targets create complete architecture-matched archives without retail game
@@ -274,8 +144,7 @@ make client-run \
 ```
 
 `client-run` uses the system's persistent OpenCoDUO profile, including normal
-configuration, favorites, downloads, and screenshots. On macOS this is
-`~/Library/Application Support/OpenCoDUO/`.
+configuration, favorites, downloads, and screenshots.
 
 Automated and development tests must use the isolated launcher instead:
 

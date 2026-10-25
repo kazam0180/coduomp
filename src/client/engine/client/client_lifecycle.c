@@ -793,15 +793,7 @@ void CL_ShutdownRef(void)
  * the ordinary, developer, or warning print prefix from printLevel. */
 void CL_RefPrintf(int32_t printLevel, const char *format, ...)
 {
-#if defined(_WIN32)
-    /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-    char message[CL_REF_PRINT_ORIGINAL_BUFFER_CAPACITY];
-#else
-    /* NOT_FROM_ORIGINAL_SOURCE: the original buffer was 4096 bytes. Native
-     * OpenGL drivers can report extension strings larger than that, so the SDL
-     * portability path carries additional formatting headroom. */
     char message[CL_REF_PRINT_BUFFER_CAPACITY];
-#endif
     va_list arguments;
 
     va_start(arguments, format);

@@ -18,12 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#define SV_BAN_STRNICMP _strnicmp
-#else
 #include <strings.h>
 #define SV_BAN_STRNICMP strncasecmp
-#endif
 
 enum {
     SERVER_AUTHORIZE_MILLISECONDS_PER_SECOND = 1000,

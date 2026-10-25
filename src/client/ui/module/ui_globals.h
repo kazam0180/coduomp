@@ -561,6 +561,5 @@ void ui_compat_reset_control_binding_state(void);
 void ui_compat_reset_memory_pool_state(void);
 void ui_compat_reset_random_geometry_state(void);
 void ui_compat_reset_temp_runtime_state(void);
-void ui_compat_reset_window_state(void);
 
 #endif

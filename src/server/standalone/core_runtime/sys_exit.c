@@ -1,6 +1,4 @@
-#if !defined(_WIN32)
 #include <fcntl.h>
-#endif
 #include <unistd.h>
 
 #include "core_runtime_private.h"
@@ -24,19 +22,15 @@ void Sys_Exit(int status)
 
 void Sys_Quit(void)
 {
-#if !defined(_WIN32)
     int flags;
-#endif
 
     CL_Shutdown();
     Cvar_Shutdown();
     Cmd_Shutdown();
     Hunk_Shutdown();
-#if !defined(_WIN32)
     flags = fcntl(SYS_STDIN_FILE_DESCRIPTOR, SYS_F_GETFL_COMMAND,
                   SYS_F_GETFL_UNUSED_ARGUMENT);
     fcntl(SYS_STDIN_FILE_DESCRIPTOR, SYS_F_SETFL_COMMAND,
           flags & ~SYS_LINUX_O_NONBLOCK);
-#endif
     Sys_Exit(SYS_NORMAL_EXIT_STATUS);
 }

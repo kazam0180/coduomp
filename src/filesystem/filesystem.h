@@ -23,11 +23,7 @@
 extern "C" {
 #endif
 
-#if defined(_WIN32)
-#define FS_HOST_PATH_SEPARATOR '\\'
-#else
 #define FS_HOST_PATH_SEPARATOR '/'
-#endif
 
 extern fileHandleData_t fs_handleFiles[FS_HANDLE_COUNT];
 extern fs_dir_file_list_t *fs_dirFileLists;

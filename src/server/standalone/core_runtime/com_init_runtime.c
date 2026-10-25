@@ -37,11 +37,7 @@
  * INTENTIONAL_OVERRIDE: identify the recovered host build in logs and cvars.
  * These strings intentionally differ from the original dedicated binary.
  */
-#if defined(_WIN32)
-#define COM_INIT_PLATFORM "windows-" COM_INIT_ARCH
-#else
 #define COM_INIT_PLATFORM "linux-" COM_INIT_ARCH
-#endif
 #define COM_INIT_BUILD_DATE "Jul 01 2026"
 #define COM_INIT_VERSION_STRING "1.51"
 #define COM_INIT_PRODUCT_STRING "CoD:UO Recovered Dedicated Engine"

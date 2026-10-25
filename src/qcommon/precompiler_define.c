@@ -588,11 +588,7 @@ void PC_ConvertPath(char *path)
 
     for (cursor = path; *cursor != '\0'; ++cursor) {
         if (*cursor == '\\' || *cursor == '/') {
-#if defined(_WIN32)
-            *cursor = '\\';
-#else
             *cursor = '/';
-#endif
         }
     }
 }

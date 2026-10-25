@@ -1,9 +1,4 @@
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
 #include <dlfcn.h>
-#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,11 +22,7 @@ static game_dll_entry_t
  */
 coduomp_vm_load_dll_entry_symbol(void *handle, const char *symbolName)
 {
-#if defined(_WIN32)
-    FARPROC symbol = GetProcAddress((HMODULE)handle, symbolName);
-#else
     void *symbol = dlsym(handle, symbolName);
-#endif
     game_dll_entry_t function = NULL;
 
     _Static_assert(sizeof(function) == sizeof(symbol),
@@ -47,11 +38,7 @@ static vmMain_t
  */
 coduomp_vm_load_dll_main_symbol(void *handle, const char *symbolName)
 {
-#if defined(_WIN32)
-    FARPROC symbol = GetProcAddress((HMODULE)handle, symbolName);
-#else
     void *symbol = dlsym(handle, symbolName);
-#endif
     vmMain_t function = NULL;
 
     _Static_assert(sizeof(function) == sizeof(symbol),
@@ -125,19 +112,12 @@ void Sys_UnloadDll(void *dllHandle)
         return;
     }
 
-#if defined(_WIN32)
-    if (FreeLibrary((HMODULE)dllHandle) == 0) {
-        Com_Printf("Sys_UnloadGame failed on FreeLibrary: %lu!\n",
-                   (unsigned long)GetLastError());
-    }
-#else
     dlclose(dllHandle);
     const char *error = dlerror();
 
     if (error != NULL) {
         Com_Printf("Sys_UnloadGame failed on dlclose: \"%s\"!\n", error);
     }
-#endif
 }
 
 void Sys_UnableToLoadDLLError(void)
@@ -148,9 +128,7 @@ void Sys_UnableToLoadDLLError(void)
 void *Sys_LoadDll(const char *name, char *fqpath, vmMain_t *entryPoint,
                   game_syscall_t syscall)
 {
-#if !defined(_WIN32)
     const char *error = NULL;
-#endif
     char dllName[VM_FIND_PATH_SIZE];
     char dllPath[MAX_OSPATH];
 
@@ -165,12 +143,7 @@ void *Sys_LoadDll(const char *name, char *fqpath, vmMain_t *entryPoint,
     FS_BuildOSPath(homepath, game, dllName, dllPath);
     Com_Printf("Sys_LoadDll(%s)... ", dllPath);
 
-#if defined(_WIN32)
-    void *handle = (void *)LoadLibraryA(dllPath);
-    Sys_CheckCrashOrRerun();
-#else
     void *handle = dlopen(dllPath, RTLD_NOW);
-#endif
 
     if (handle == NULL) {
         Com_Printf("failed\n");
@@ -178,31 +151,16 @@ void *Sys_LoadDll(const char *name, char *fqpath, vmMain_t *entryPoint,
         FS_BuildOSPath(basepath, game, dllName, dllPath);
         Com_Printf("Sys_LoadDll(%s)... ", dllPath);
 
-#if defined(_WIN32)
-        handle = (void *)LoadLibraryA(dllPath);
-        Sys_CheckCrashOrRerun();
-#else
         handle = dlopen(dllPath, RTLD_NOW);
-#endif
         if (handle == NULL) {
-#if defined(_WIN32)
-            Com_Printf("\nSys_LoadDll(%s) failed with Windows error %lu\n",
-                       dllPath, (unsigned long)GetLastError());
-#else
             error = dlerror();
             Com_Printf("\nSys_LoadDll(%s) failed:\n\"%s\"\n", dllPath, error);
-#endif
         } else {
             Com_Printf("ok\n");
         }
 
         if (handle == NULL) {
-#if defined(_WIN32)
-            Com_Printf("Sys_LoadDll(%s) failed LoadLibrary() completely!\n",
-                       name);
-#else
             Com_Printf("Sys_LoadDll(%s) failed dlopen() completely!\n", name);
-#endif
             return NULL;
         }
     } else {
@@ -220,17 +178,6 @@ void *Sys_LoadDll(const char *name, char *fqpath, vmMain_t *entryPoint,
 
     /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
     if (*entryPoint == NULL || dllEntry == NULL) {
-#if defined(_WIN32)
-        Com_Printf("Sys_LoadDll(%s) failed GetProcAddress(vmMain/dllEntry): "
-                   "Windows error %lu!\n",
-                   name, (unsigned long)GetLastError());
-
-        if (FreeLibrary((HMODULE)handle) == 0) {
-            Com_Printf("Sys_LoadDll(%s) failed FreeLibrary: Windows error "
-                       "%lu\n",
-                       name, (unsigned long)GetLastError());
-        }
-#else
         error = dlerror();
         Com_Printf("Sys_LoadDll(%s) failed dlsym(vmMain):\n\"%s\" !\n", name,
                    error);
@@ -241,7 +188,6 @@ void *Sys_LoadDll(const char *name, char *fqpath, vmMain_t *entryPoint,
             Com_Printf("Sys_LoadDll(%s) failed dlcose:\n\"%s\"\n", name,
                        error);
         }
-#endif
 
         return NULL;
     }

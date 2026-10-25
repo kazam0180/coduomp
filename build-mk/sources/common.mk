@@ -477,11 +477,11 @@ LAYOUT_SERVER_ENGINE_C_SOURCES := \
 	src/server/engine/server_startup.c \
 	src/server/engine/server_xmodel.c
 
-LAYOUT_WINDOWS_GENERATED_C_SOURCES := \
-	src/scripting/generated/windows/script_parse_nodes.c \
-	src/scripting/generated/windows/script_yy_ast_builders.c \
-	src/scripting/generated/windows/script_yy_parse.c \
-	src/scripting/generated/windows/script_yy_tables.c
+LAYOUT_CLIENT_GENERATED_C_SOURCES := \
+	src/scripting/generated/client/script_parse_nodes.c \
+	src/scripting/generated/client/script_yy_ast_builders.c \
+	src/scripting/generated/client/script_yy_parse.c \
+	src/scripting/generated/client/script_yy_tables.c
 
 LAYOUT_POSIX_GENERATED_C_SOURCES := \
 	src/scripting/generated/posix/script_yy_builders.c \

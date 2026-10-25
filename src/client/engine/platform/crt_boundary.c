@@ -1,18 +1,11 @@
-#if !defined(_WIN32)
 #define _POSIX_C_SOURCE 200809L
-#endif
 
 #include "crt_boundary.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-#if defined(_WIN32)
-#include <direct.h>
-#else
 #include <sys/stat.h>
 #include <unistd.h>
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: portable linkage boundary for the statically
  * linked MSVC _mkdir entry at CoDUOMP.exe 0x0056ec9b. POSIX mkdir needs an
@@ -20,11 +13,7 @@
  * process umask apply the user's platform policy. */
 int coduomp_crt_mkdir(const char *path)
 {
-#if defined(_WIN32)
-    return _mkdir(path);
-#else
     return mkdir(path, 0777);
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: portable linkage boundary for the statically
@@ -32,11 +21,7 @@ int coduomp_crt_mkdir(const char *path)
  * 0x0056ecc7..0x0056ee2e. */
 char *coduomp_crt_getcwd(char *buffer, size_t size)
 {
-#if defined(_WIN32)
-    return _getcwd(buffer, (int)size);
-#else
     return getcwd(buffer, size);
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: ownership adapter for the statically linked MSVC
@@ -46,9 +31,6 @@ char *coduomp_crt_getcwd(char *buffer, size_t size)
  * contract. */
 int coduomp_crt_putenv_copy(const char *assignment)
 {
-#if defined(_WIN32)
-    return _putenv(assignment);
-#else
     const char *const separator = strchr(assignment, '=');
     if (separator == NULL || separator == assignment)
         return -1;
@@ -67,5 +49,5 @@ int coduomp_crt_putenv_copy(const char *assignment)
             : unsetenv(name);
     free(name);
     return result;
-#endif
+}
 }

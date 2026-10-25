@@ -79,11 +79,6 @@ uint16_t GetEntnum(uint16_t handle);
 script_variable_type_t GetVarType(uint16_t handle);
 uint16_t GetArraySize(uint16_t handle);
 uint16_t FindNextSibling(uint16_t handle);
-/* windows.h aliases the unrelated GDI GetObject entry point to GetObjectA.
- * Keep that platform macro from rewriting the original script API name. */
-#if defined(_WIN32) && defined(GetObject)
-#undef GetObject
-#endif
 uint16_t GetObject(uint16_t handle);
 uint16_t GetArray(uint16_t handle);
 uint16_t FindObject(uint16_t handle);

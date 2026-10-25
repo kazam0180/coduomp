@@ -1,17 +1,14 @@
-.PHONY: native-link linux-i386-link windows-cross-link win32-abi-link \
+.PHONY: native-link linux-i386-link \
 	syntax-check check
 
 ROOT := .
 include build-mk/sources/ui.mk
-# The recovered UI represents only the retail Windows client module.
+CODUO_DEFAULT_BEHAVIOR := windows
+override CODUO_BEHAVIOR := windows
+include $(ROOT)/build-mk/platform-behavior.mk
 CC ?= clang
 WIDTH_CC ?= clang
-WINDOWS_CC ?= x86_64-w64-mingw32-gcc
-WIN32_CC ?= i686-w64-mingw32-gcc
 RECOVERY_POLICY_CPPFLAGS :=
-WINDOWS_DEF := build-mk/abi/ui/uo_ui_mp_x86.def
-WINDOWS_LIBRARY ?= .workbench/build/ui/windows-x86_64/uo_ui_mp_x86.dll
-WIN32_LIBRARY ?= .workbench/build/ui/windows-i686/uo_ui_mp_x86.dll
 LINUX_I386_LIBRARY ?= .workbench/build/ui/linux-i386/libcoduo_ui.so
 UI_DIR := $(ROOT)/src/client/ui
 C_SOURCES := $(UI_C_SOURCES)
@@ -25,16 +22,10 @@ SHARED_C_SOURCES := $(ROOT)/src/qcommon/com_parse.c \
 	$(ROOT)/src/qcommon/q_shared_misc.c \
 	$(ROOT)/src/qcommon/q_string.c \
 	$(ROOT)/src/qcommon/q_temp.c \
-	$(ROOT)/src/compat/crt/asin_compat.c \
-	$(ROOT)/src/compat/crt/atan2_compat.c \
 	$(ROOT)/src/compat/crt/atof_compat.c \
 	$(ROOT)/src/compat/crt/format_compat.c \
-	$(ROOT)/src/compat/crt/modf_compat.c \
 	$(ROOT)/src/compat/crt/msvc_compat.c \
-	$(ROOT)/src/compat/crt/pow_compat.c \
 	$(ROOT)/src/compat/crt/qsort_compat.c \
-	$(ROOT)/src/compat/crt/sin_cos_compat.c \
-	$(ROOT)/src/compat/crt/sqrt_compat.c \
 	$(ROOT)/src/client/common/client_common.c \
 	$(ROOT)/src/client/common/client_legacy_crt.c \
 	$(ROOT)/src/client/common/localized_float.c \
@@ -155,55 +146,38 @@ SHARED_C_SOURCES := $(ROOT)/src/qcommon/com_parse.c \
 	$(ROOT)/src/math/q_shared_random.c \
 	$(ROOT)/src/math/vector_projection.c
 ALL_C_SOURCES := $(C_SOURCES) $(SHARED_C_SOURCES)
+# UI targets are client code and must never inherit the generic arm64
+# software-x87 default through a shared translation unit's include order.
+override CLIENT_FP_CPPFLAGS := -DEMULATE_X87=0
 INCLUDE_FLAGS := -iquote $(UI_DIR)/bindings \
 	-iquote $(ROOT)/src/qcommon/bindings/default \
 	-I$(ROOT)/src
 
-ifeq ($(shell uname -s),Darwin)
-NATIVE_LIBRARY ?= .workbench/build/ui/native/libcoduo_ui.dylib
-NATIVE_LDFLAGS := -dynamiclib
-else
 NATIVE_LIBRARY ?= .workbench/build/ui/native/libcoduo_ui.so
 NATIVE_LDFLAGS := -shared -Wl,--no-undefined
-endif
 
 # The retail MSVC target performs signed integer arithmetic in 32-bit
 # registers. Preserve that defined target behavior without per-expression
 # rollover adapters in recovered source.
 UI_INTEGER_FLAGS := -fwrapv
-# Keep tentative globals in ordinary zero-fill storage. Darwin ld64 otherwise
-# derives a 32 KiB COMMON alignment from the large UI state and reduces it to
-# the arm64 Mach-O segment maximum with a link warning.
 UI_NATIVE_STORAGE_FLAGS := -fno-common
 
 native-link:
 	mkdir -p $(dir $(NATIVE_LIBRARY))
-	$(CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) -Wall -Wextra -Werror -g -O0 -fPIC \
+	$(CC) -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) $(PLATFORM_BEHAVIOR_CPPFLAGS) -Wall -Wextra -Werror -g -O0 -fPIC \
 		$(UI_INTEGER_FLAGS) $(UI_NATIVE_STORAGE_FLAGS) -fvisibility=hidden $(INCLUDE_FLAGS) $(ALL_C_SOURCES) $(NATIVE_LDFLAGS) -lm \
 		-o $(NATIVE_LIBRARY)
 
 syntax-check:
-	$(WIDTH_CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) -fsyntax-only $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror \
+	$(WIDTH_CC) -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) $(PLATFORM_BEHAVIOR_CPPFLAGS) -fsyntax-only $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror \
 		-Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
 		-Werror=int-conversion -Werror=shorten-64-to-32 \
 		-Werror=pointer-to-int-cast -Werror=int-to-pointer-cast \
 		-Werror=void-pointer-to-int-cast $(INCLUDE_FLAGS) $(ALL_C_SOURCES)
 
-windows-cross-link:
-	@mkdir -p $(dir $(WINDOWS_LIBRARY))
-	$(WINDOWS_CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror $(INCLUDE_FLAGS) $(ALL_C_SOURCES) \
-		-shared -static-libgcc $(WINDOWS_DEF) -Wl,--no-undefined -luser32 -lgdi32 -lm \
-		-o $(WINDOWS_LIBRARY)
-
-win32-abi-link:
-	@mkdir -p $(dir $(WIN32_LIBRARY))
-	$(WIN32_CC) -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror $(INCLUDE_FLAGS) $(ALL_C_SOURCES) \
-		-shared -static-libgcc $(WINDOWS_DEF) -Wl,--no-undefined -luser32 -lgdi32 -lm \
-		-o $(WIN32_LIBRARY)
-
 linux-i386-link:
 	@mkdir -p $(dir $(LINUX_I386_LIBRARY))
-	$(CC) -m32 -std=c11 $(RECOVERY_POLICY_CPPFLAGS) $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror \
+	$(CC) -m32 -std=c11 $(CLIENT_FP_CPPFLAGS) $(RECOVERY_POLICY_CPPFLAGS) $(PLATFORM_BEHAVIOR_CPPFLAGS) $(UI_INTEGER_FLAGS) -Wall -Wextra -Werror \
 		-g -O0 -fPIC -fvisibility=hidden \
 		$(INCLUDE_FLAGS) $(ALL_C_SOURCES) -shared -Wl,--no-undefined -lm \
 		-o $(LINUX_I386_LIBRARY)

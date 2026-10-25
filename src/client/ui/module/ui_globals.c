@@ -574,5 +574,4 @@ void ui_compat_reset_module_load_state(void)
     ui_compat_reset_memory_pool_state();
     ui_compat_reset_random_geometry_state();
     ui_compat_reset_temp_runtime_state();
-    ui_compat_reset_window_state();
 }

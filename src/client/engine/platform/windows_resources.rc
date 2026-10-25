@@ -1,5 +1,0 @@
-#include <windows.h>
-
-#define IDI_CODUOMP 133
-
-IDI_CODUOMP ICON "assets/windows/coduomp.ico"

@@ -62,11 +62,9 @@ A lookup table (LUT) is a fixed array that maps each input channel value to an
 output value. The client computes a 256-entry red, green, and blue mapping from
 `r_gamma`, `r_contrast`, and overbright state, then gives that mapping to one of these paths:
 
-1. **Native display gamma** changes the monitor/display pipeline. On Windows,
-   the client uses the GDI device for the monitor containing the game window;
-   on SDL platforms it first uses the window-associated display. Linux can
-   additionally target the window's XRandR CRTC. This is the closest behavior
-   to the original game.
+1. **Native display gamma** changes the monitor/display pipeline. On SDL
+   it first uses the window-associated display; Linux can additionally target
+   the window's XRandR CRTC. This is the closest behavior to the original game.
 2. **Full-frame software gamma** copies the completed framebuffer and maps all
    three channels through the exact renderer LUT in an OpenGL fragment-program
    presentation pass. It is window-scoped and does not alter another monitor
@@ -78,20 +76,8 @@ output value. The client computes a 256-entry red, green, and blue mapping from
    completed frame and can therefore look different from native or full-frame
    gamma.
 
-Automatic provider order is:
-
-| Platform | Provider order |
-| --- | --- |
-| Windows | Game-monitor GDI ramp, full-frame software LUT, original texture fallback |
-| Linux/X11 | SDL display ramp, game-window XRandR CRTC, full-frame software LUT, original texture fallback |
-| macOS | SDL display ramp, full-frame software LUT, original texture fallback |
-
-On Windows, `SetDeviceGammaRamp` can report success even when the driver or
-display path does not visibly apply the ramp. The client can automatically
-fall back after an explicit API failure or a broken captured ramp, but it
-cannot reliably detect that silent-success case. Use `r_gammaMode 2` to force
-the full-frame software path, or `r_gammaMode 0` when external controls should
-own gamma.
+Automatic provider order on Linux/X11 is:
+SDL display ramp, game-window XRandR CRTC, full-frame software LUT, original texture fallback.
 
 This guide describes the `master` branch. The `stock` branch retains the
 recovered original gamma selection and fallback behavior and does not register

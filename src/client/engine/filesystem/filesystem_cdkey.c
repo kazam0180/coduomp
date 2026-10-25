@@ -7,31 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#endif
-
 enum {
     COM_CDKEY_PAYLOAD_BYTES =
-        CL_CDKEY_PART_SIZE + CL_CDKEY_CHECKSUM_SIZE,
-    COM_WINDOWS_CDKEY_RECORD_BYTES = COM_CDKEY_PAYLOAD_BYTES + 1
+        CL_CDKEY_PART_SIZE + CL_CDKEY_CHECKSUM_SIZE
 };
 
 static const char comDefaultCdKey[CL_CDKEY_PART_SIZE + 1] =
     "                ";
-
-#if defined(_WIN32)
-static const char comCdKeyRegistryPath[] =
-    "SOFTWARE\\Activision\\Call of Duty United Offensive";
-static const char comCdKeyRegistryValue[] = "key";
-#if defined(_WIN64)
-/* NOT_FROM_ORIGINAL_SOURCE: the PE32+ client must select the stock PE32
- * registry view explicitly so both Windows architectures share one record. */
-#define COM_WINDOWS_CDKEY_REGISTRY_VIEW KEY_WOW64_32KEY
-#else
-#define COM_WINDOWS_CDKEY_REGISTRY_VIEW 0
-#endif
-#endif
 
 /* Source: CoDUOMP.exe 0x0043b020..0x0043b058.
  * Evidence: coduomp/mcode/CoDUOMP/FUN_0043b020_0043b059.mcode and the exact
@@ -43,93 +25,6 @@ void Com_ResetCDKeyToDefault(void)
     memcpy(&cl_cdkey[CL_PRIMARY_CDKEY_OFFSET],
            comDefaultCdKey, sizeof(comDefaultCdKey));
 }
-
-#if defined(_WIN32)
-
-/* Source: CoDUOMP.exe 0x0043b060..0x0043b1c4.
- * Evidence: coduomp/mcode/CoDUOMP/FUN_0043b060_0043b1c5.mcode.
- * Exact same-module Mac symbol: Com_ReadCDKey. The Windows executable reads
- * the 21-byte REG_SZ value from HKLM. */
-void Com_ReadCDKey(void)
-{
-    char record[COM_WINDOWS_CDKEY_RECORD_BYTES];
-    qboolean readSucceeded = qfalse;
-    HKEY keyHandle;
-
-    if (RegOpenKeyExA(
-            HKEY_LOCAL_MACHINE, comCdKeyRegistryPath, 0,
-            KEY_QUERY_VALUE | COM_WINDOWS_CDKEY_REGISTRY_VIEW,
-            &keyHandle) == ERROR_SUCCESS) {
-        DWORD valueType = REG_SZ;
-        DWORD recordSize = sizeof(record);
-
-        if (RegQueryValueExA(
-                keyHandle, comCdKeyRegistryValue, NULL,
-                &valueType, (BYTE *)record,
-                &recordSize) == ERROR_SUCCESS &&
-            recordSize == sizeof(record)) {
-            readSucceeded = qtrue;
-        }
-        RegCloseKey(keyHandle);
-    }
-
-    if (readSucceeded == qfalse) {
-        Com_ResetCDKeyToDefault();
-        return;
-    }
-
-    memcpy(&cl_cdkey[CL_PRIMARY_CDKEY_OFFSET],
-           record, CL_CDKEY_PART_SIZE);
-    cl_cdkey[CL_UNIQUE_MOD_CDKEY_OFFSET] = '\0';
-    memcpy(&cl_cdkeyChecksums[CL_PRIMARY_CDKEY_CHECKSUM_OFFSET],
-           &record[CL_CDKEY_PART_SIZE], CL_CDKEY_CHECKSUM_SIZE);
-    cl_cdkeyChecksums[CL_UNIQUE_MOD_CDKEY_CHECKSUM_OFFSET] = '\0';
-
-    if (CL_CDKeyValidate(
-            &cl_cdkey[CL_PRIMARY_CDKEY_OFFSET],
-            &cl_cdkeyChecksums[CL_PRIMARY_CDKEY_CHECKSUM_OFFSET]) == qfalse) {
-        Com_ResetCDKeyToDefault();
-    }
-}
-
-/* Source: CoDUOMP.exe 0x0043b1d0..0x0043b2b6.
- * Evidence: coduomp/mcode/CoDUOMP/FUN_0043b1d0_0043b2b7.mcode.
- * Exact same-module Mac symbol: Com_WriteCDKey. Invalid keys are replaced by
- * the default without writing; valid keys are serialized as 16 key bytes,
- * four checksum bytes, and a final NUL. */
-void Com_WriteCDKey(void)
-{
-    if (CL_CDKeyValidate(
-            &cl_cdkey[CL_PRIMARY_CDKEY_OFFSET],
-            &cl_cdkeyChecksums[CL_PRIMARY_CDKEY_CHECKSUM_OFFSET]) == qfalse) {
-        Com_ResetCDKeyToDefault();
-        return;
-    }
-
-    char record[COM_WINDOWS_CDKEY_RECORD_BYTES];
-    memcpy(record, &cl_cdkey[CL_PRIMARY_CDKEY_OFFSET],
-           CL_CDKEY_PART_SIZE);
-    memcpy(&record[CL_CDKEY_PART_SIZE],
-           &cl_cdkeyChecksums[CL_PRIMARY_CDKEY_CHECKSUM_OFFSET],
-           CL_CDKEY_CHECKSUM_SIZE);
-    record[COM_WINDOWS_CDKEY_RECORD_BYTES - 1] = '\0';
-
-    HKEY keyHandle;
-    DWORD disposition;
-    if (RegCreateKeyExA(
-            HKEY_LOCAL_MACHINE, comCdKeyRegistryPath, 0, NULL,
-            REG_OPTION_NON_VOLATILE,
-            KEY_WRITE | COM_WINDOWS_CDKEY_REGISTRY_VIEW,
-            NULL, &keyHandle, &disposition) != ERROR_SUCCESS) {
-        return;
-    }
-    (void)RegSetValueExA(
-        keyHandle, comCdKeyRegistryValue, 0, REG_SZ,
-        (const BYTE *)record, sizeof(record));
-    RegCloseKey(keyHandle);
-}
-
-#else
 
 /*
  * NOT_FROM_ORIGINAL_SOURCE: native environment override for the primary UO
@@ -306,5 +201,3 @@ void Com_WriteCDKey(const char *gameDirectory,
               "// Aspyr will NOT ask you to send this file to them.\n");
     FS_FCloseFile(fileHandle);
 }
-
-#endif

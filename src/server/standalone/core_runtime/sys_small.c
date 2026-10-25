@@ -1,8 +1,6 @@
 #include <stdlib.h>
-#if !defined(_WIN32)
 #include <pwd.h>
 #include <unistd.h>
-#endif
 
 #include "core_runtime_private.h"
 
@@ -27,15 +25,6 @@ Sys_ConfigureChecksumChanged(int32_t checksum)
 
 const char *Sys_GetCurrentUser(void)
 {
-#if defined(_WIN32)
-    const char *username = getenv("USERNAME");
-
-    if (username == NULL || username[0] == '\0') {
-        return SYS_DEFAULT_USERNAME;
-    }
-
-    return username;
-#else
     struct passwd *entry;
 
     entry = getpwuid(getuid());
@@ -44,5 +33,4 @@ const char *Sys_GetCurrentUser(void)
     }
 
     return entry->pw_name;
-#endif
 }

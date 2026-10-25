@@ -6,11 +6,7 @@ extern "C" {
 #endif
 
 #include <ctype.h>
-#if defined(_WIN32)
-#include <string.h>
-#else
 #include <strings.h>
-#endif
 
 #include "../core_memory/core_memory_private.h"
 #include "../core_runtime/core_runtime_private.h"
@@ -20,7 +16,6 @@ extern "C" {
 #include "../scripting/script_notify_private.h"
 #include "../scripting/script_runtime_private.h"
 #include "compat/coduo_ctype_compat.h"
-#include "compat/coduo_compiler.h"
 #include "scripting/script_serialization.h"
 #include "scripting/script_source_positions.h"
 #include "scripting/script_variable.h"
@@ -34,13 +29,8 @@ extern "C" {
 #define SCRIPT_HUNK_CLEAR_TEMP_HIGH() Hunk_ClearTempMemoryHigh()
 #define SCRIPT_HUNK_COMMIT_TEMP() Hunk_CommitTempMemory()
 #define SCRIPT_OUT_OF_MEMORY() Sys_OutOfMemory()
-/* Caller-stack storage uses the shared compiler adapter. */
-#define SCRIPT_HOST_ALLOCA(size) CODUO_ALLOCA(size)
-#if defined(_WIN32)
-#define SCRIPT_STRICMP(left, right) _stricmp((left), (right))
-#else
+#define SCRIPT_HOST_ALLOCA(size) __builtin_alloca(size)
 #define SCRIPT_STRICMP(left, right) strcasecmp((left), (right))
-#endif
 #define SCRIPT_ISALNUM_SIGNED_BYTE(value) \
     isalnum(coduo_ctype_signed_byte_arg(value))
 #define SCRIPT_TOLOWER_SIGNED_BYTE(value) \

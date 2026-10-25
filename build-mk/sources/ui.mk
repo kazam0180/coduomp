@@ -73,7 +73,6 @@ UI_C_SOURCES := \
 	src/client/ui/module/ui_set_active_menu.c \
 	src/client/ui/module/ui_test.c \
 	src/client/ui/module/ui_vm_main.c \
-	src/client/ui/platform/ui_windows_display.c \
 	src/client/ui/render/text_font_selection.c \
 	src/client/ui/render/text_paint_center.c \
 	src/client/ui/render/ui_asset_cache.c \

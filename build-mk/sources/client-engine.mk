@@ -65,8 +65,6 @@ CLIENT_ENGINE_C_SOURCES := \
 	src/client/engine/platform/case_sensitive_fs.c \
 	src/client/engine/platform/crt_boundary.c \
 	src/client/engine/platform/dynamic_library_boundary.c \
-	src/client/engine/platform/floating_point_boundary.c \
-	src/client/engine/platform/hardware_profile.c \
 	src/client/engine/platform/libwww_curl_boundary.c \
 	src/client/engine/platform/minizip_boundary.c \
 	src/client/engine/platform/punkbuster_boundary.c \
@@ -178,7 +176,6 @@ CLIENT_ENGINE_C_SOURCES := \
 	src/client/engine/system_localization.c \
 	src/client/engine/system_main.c \
 	src/client/engine/system_platform.c \
-	src/client/engine/system_process_lock.c \
 	src/client/engine/system_time.c \
 	src/client/engine/system_video_memory.c \
 	src/client/engine/ui/ui_client_state.c \
@@ -276,7 +273,7 @@ CLIENT_ENGINE_MATH_C_SOURCES := \
 
 CLIENT_ENGINE_TARGET_C_SOURCES := \
 	$(CLIENT_ENGINE_C_SOURCES) \
-	$(LAYOUT_WINDOWS_GENERATED_C_SOURCES) \
+	$(LAYOUT_CLIENT_GENERATED_C_SOURCES) \
 	$(LAYOUT_CLIENT_COMMON_C_SOURCES) \
 	$(CLIENT_ENGINE_CLIENT_MATH_C_SOURCES) \
 	$(LAYOUT_QCOMMON_C_SOURCES) \

@@ -14,7 +14,8 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 ### Server browser
 
 - Server and map names are fitted to their columns by rendered pixel width, preventing wide or colored text from overlapping neighboring fields.
-- Server-name sorting follows visible names, ignoring color escapes and ordering digits consistently. Equal primary sort keys use deterministic tie-breaking.
+- Server refreshes distinguish human players from bots reported with the conventional 999 ping. The player column shows the human count against the server capacity and appends the bot count in subdued text. Learned bot counts persist across client launches and remain stable while each refresh obtains a current roster; only a new valid roster replaces the cached count.
+- Server-name sorting follows visible names, ignoring color escapes and ordering digits consistently. Final roster updates preserve the selected row and viewport while applying deterministic tie-breaking.
 - Favorites retain their last known or user-supplied hostname when a refresh times out instead of falling back to the numeric address.
 
 ### Mods/Server
@@ -23,23 +24,17 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 - Per-map `<map>_<gametype>.cfg` files load by the visible map name even when the map asset name contains color escapes.
 - **Server configuration:** add `set g_allowGlobalChat 0` to the server config or enter it in the server console to disable player general chat while preserving team, squad, private, scripted, and server-console messages. Set it to `1` to enable general chat again; `1` is the default.
 - Dedicated and listen servers skip external CD-key authorization by default.
-- Redirect downloads join `sv_wwwBaseURL` and the pak path with one separator and normalize pak-path backslashes. Empty or oversized redirect URLs fall back to direct downloads.
 
 ### Platforms and display
 
-- Extends client support to macOS and Linux.
+- Extends client support to Linux.
 - The graphics menu adds a Current Display option and filters modern presets through 3840 x 2160 to resolutions reported by the selected display.
-- The Monitor selector chooses the display used for window placement, fullscreen presentation, and resolution discovery on Windows, macOS, and Linux. Its archived `r_display` cvar uses a zero-based index (default `0`); apply the graphics settings or run `vid_restart` after changing it. An unavailable selection falls back to the first display.
-- `r_fullscreen` selects Windowed (`0`), Fullscreen (`1`, the default), or Borderless (`2`). Fullscreen keeps the OS display mode and other monitors active. On macOS and Linux, Fullscreen enters desktop fullscreen while Borderless remains an undecorated desktop-sized window.
+- The Monitor selector chooses the display used for window placement, fullscreen presentation, and resolution discovery on Linux. Its archived `r_display` cvar uses a zero-based index (default `0`); apply the graphics settings or run `vid_restart` after changing it. An unavailable selection falls back to the first display.
+- `r_fullscreen` selects Windowed (`0`), Fullscreen (`1`, the default), or Borderless (`2`). Fullscreen keeps the OS display mode and other monitors active. Fullscreen enters desktop fullscreen while Borderless remains an undecorated desktop-sized window.
 - Widescreen support covers the gameplay FOV, menus, HUD, reticles, optical overlays, and full-screen effects; classic fitted 4:3 remains selectable.
 - The Graphics page has an 80-120 horizontal field-of-view slider below Brightness, with its current value beside the meter. `cg_fov` is the displayed view angle directly. Changing the resolution or Fill Screen/Classic 4:3 presentation resets it to the aspect-aware default only when the effective aspect ratio changes; right-clicking the slider restores that same default.
 - The FOV preference is archived and remains editable on servers with cheats disabled. Startup and server joins do not automatically adjust it to the display aspect.
 - Mods that replace the HUD menu file (e.g. Reign of the Undead) are detected and render their HUD and in-game menu screens with the stock full-width presentation so their authored layout stays intact, while the world keeps the widescreen FOV; `cg_modHudPresentation` can force stretched, centered, or anchored HUD presentation.
-- Retina and other high-DPI displays are supported. macOS fullscreen modes avoid oversized drawables caused by scaled Retina backing surfaces.
-- Alt-Tab from fullscreen is enabled by default on Windows.
-- Windows restores the captured desktop gamma ramp when the game window is minimized or loses focus, so other windows no longer keep the game's `r_gamma` brightness.
-- New Apple Silicon profiles default to 2560 x 1440, high graphics settings, and a 250 FPS cap.
-- Apple Silicon defaults to streamed, interleaved vertex uploads (`r_vbo_stream_draw 1` and `r_vbo_interleave 1`); these saved settings take effect on renderer restart. New Apple Silicon profiles also set `r_finish 0` to avoid forcing GPU synchronization each frame.
 - 64-bit clients require at least 256 MiB of hunk memory (`com_hunkMegs`), including when an older saved setting requested less.
 
 ### Servers, mods, and configuration
@@ -48,7 +43,7 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 - Connecting no longer fails with the common `MAX_GAMESTATE_CHARS exceeded` error: the client's retained configstring pool grows from 20,480 to 32,768 bytes, enough for any gamestate a protocol-22 server can physically deliver (a gamestate must fit one 32,768-byte network message, which spends more bytes per configstring than the pool does). The same enlarged pool bounds configstring updates during play, and a server that composes an oversized gamestate logs a clear console warning while behaving exactly as before.
 - Downloads are enabled by default unless the user has explicitly disabled them.
 - Server Cache isolates each remote server's settings and downloaded content so servers cannot overwrite one another's same-named PK3s.
-- Server mod reset independently restores the process-start `fs_game` after disconnecting from a remote session, including when Server Cache is disabled. Manually selected mods remain loaded while starting, changing maps on, or leaving a local listen server.
+- Server mod reset independently restores the process-start `fs_game` after disconnecting, including when Server Cache is disabled.
 - Cached server mods appear in the Mods list, and checksum-matching PK3s from ordinary game roots or other server caches are reused instead of downloaded again. Cache matches may have different filenames or mod directories; the source server's configuration and unrelated content remain isolated.
 - Server Cache can be disabled under **Options -> System -> Advanced**.
 - `promoteserverconfig` saves the current isolated server profile as the global configuration.
@@ -68,9 +63,8 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Console and input
 
-- Windows mouse input uses Raw Input by default, bypassing the system's **Enhance pointer precision** acceleration without changing the Windows setting; **Raw Input Active** under **Options -> Advanced** can disable it. The archived `in_rawInput` cvar selects this path (`1`, the default) or legacy mouse movement (`0`) and takes effect immediately; the read-only `in_rawInputActive` cvar reports whether Raw Input is actually available.
 - The console key can be rebound from the options menu, including rebinding the backtick key itself.
-- Native Linux/macOS clients support Ctrl-V or Command-V clipboard paste.
+- Native Linux clients support Ctrl-V clipboard paste.
 - Ctrl-W deletes the previous console word and treats underscores as word delimiters.
 - Console scrollback is four times larger.
 

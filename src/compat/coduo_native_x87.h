@@ -217,9 +217,7 @@ coduo_x87_sincosf(float angle, float *sinOut, float *cosOut)
     float sine;
     float cosine;
 
-#if defined(__APPLE__)
-    __sincosf(angle, &sine, &cosine);
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
     __builtin_sincosf(angle, &sine, &cosine);
 #else
     sine = sinf(angle);
@@ -249,9 +247,7 @@ coduo_x87_sincos(double angle, double *sinOut, double *cosOut)
     double sine;
     double cosine;
 
-#if defined(__APPLE__)
-    __sincos(angle, &sine, &cosine);
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
     __builtin_sincos(angle, &sine, &cosine);
 #else
     sine = sin(angle);
