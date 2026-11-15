@@ -94,6 +94,20 @@ server_pb_disabled_c = files(fs.read('meson/sources/server_pb_disabled_c.txt').s
 server_pb_server_c = files(fs.read('meson/sources/server_pb_server_c.txt').strip().split('\n'))
 softfloat_c = files(fs.read('meson/sources/softfloat_c.txt').strip().split('\n'))
 
+# GCC 14 promotes these C constraint violations to errors by default.  Keep
+# older release toolchains equally strict so a downstream compiler cannot be
+# the first to reject a source build.  These options are C-only; GCC rejects
+# them for C++ translation units.
+c_type_error_args = [
+  '-Werror=implicit-int',
+  '-Werror=implicit-function-declaration',
+  '-Werror=incompatible-pointer-types',
+  '-Werror=int-conversion',
+  '-Werror=return-type',
+]
+strict_warning_args = ['-Wall', '-Wextra', '-Werror']
+strict_c_warning_args = strict_warning_args + c_type_error_args
+
 client_c_args = [
   '-std=c11',
   '-g',
@@ -106,14 +120,7 @@ client_c_args = [
   '-fwrapv',
   '-ffp-contract=off',
   '-fno-common',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
-  '-Wno-error=implicit-int',
-  '-Wno-error=implicit-function-declaration',
-  '-Wno-error=incompatible-pointer-types',
-  '-Wno-error=int-conversion',
-  '-Wno-error=return-type',
+] + strict_c_warning_args + [
   '-iquote', root + '/src/client/engine/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -136,9 +143,7 @@ client_cxx_args = [
   '-fwrapv',
   '-ffp-contract=off',
   '-fno-common',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
+] + strict_warning_args + [
   '-iquote', root + '/src/client/engine/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -159,14 +164,7 @@ cgame_c_args = [
   '-fno-common',
   '-fPIC',
   '-fvisibility=hidden',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
-  '-Wno-error=implicit-int',
-  '-Wno-error=implicit-function-declaration',
-  '-Wno-error=incompatible-pointer-types',
-  '-Wno-error=int-conversion',
-  '-Wno-error=return-type',
+] + strict_c_warning_args + [
   '-iquote', root + '/src/client/cgame/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -184,9 +182,7 @@ ui_c_args = [
   '-fno-common',
   '-fPIC',
   '-fvisibility=hidden',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
+] + strict_c_warning_args + [
   '-iquote', root + '/src/client/ui/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -205,9 +201,7 @@ server_c_args = [
   '-fsigned-char',
   '-fno-short-enums',
   '-fwrapv',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
+] + strict_c_warning_args + [
   '-pedantic',
   '-iquote', root + '/src/server/standalone/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
@@ -232,9 +226,7 @@ server_cxx_args = [
   '-fsigned-char',
   '-fno-short-enums',
   '-fwrapv',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
+] + strict_warning_args + [
   # The shared recovered headers use C flexible-array members.  That is a GNU
   # extension, not ISO C++, so -pedantic rejects these two C++ translation
   # units.  Leave -pedantic off here rather than disable its warning category;
@@ -262,9 +254,7 @@ game_common_args = [
   '-fwrapv',
   '-fno-common',
   '-fPIC',
-  '-Wall',
-  '-Wextra',
-  '-Wno-error',
+] + strict_c_warning_args + [
   '-pedantic',
   '-iquote', root + '/src/qcommon/bindings/default',
 ] + x87_allow_args
