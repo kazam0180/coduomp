@@ -89,17 +89,19 @@ binary's behavior, defaults, quirks, or bugs for parity.
   hostname, workspace name, network address, or private remote path. Keep
   machine-specific release settings as invocation-time values and run the
   maintained package privacy/import audits.
-- Validate source-policy invariants with `make policy-check` before committing.
+- Validate source-policy invariants with
+  `meson compile -C BUILD_DIR policy-check` (or `tools/check-source-policy.sh`)
+  before committing.
 - Build and test every affected Linux target in proportion to the change: the
-  native client with `make`, and the relevant `client-linux32`, `client-linux64`,
-  `server32`, or `server64` target.
+  native client with `meson compile`, and the relevant `client-linux32`,
+  `client-linux64`, `server`, or 32-bit cross target.
 - `client-run` is the user-facing normal-game launcher and intentionally uses
   the persistent system profile. Agents must never invoke it or create, edit,
   move, seed, restore, replace, or delete files in the profile it uses unless
   the user explicitly requests the exact operation and identifies the
   authoritative source for any restored or replacement data.
-- Use `make client-test-run` for automated and development client runs; it keeps
-  its runtime and home directory under `.workbench/runtime/`.
+- Use the `client-test-run` Meson target for automated and development client
+  runs; it keeps its runtime and home directory under `.workbench/runtime/`.
 - Do not edit, refactor, rename, restructure, or otherwise change `client-run`,
   `client-test-run`, their dependency graph, or their configuration/profile/
   home-path routing unless the user explicitly requests that exact change.

@@ -70,6 +70,9 @@ specialization, not the pure `8086` one we use — so bf16 does not compile unde
 `8086`, and we never use bfloat16 anyway. `build/coduo-x87/platform.h` is our
 platform config (little-endian + GCC builtins; portable to x86-64 and arm64).
 
-Build (either arch): `make -C vendor/softfloat/build/coduo-x87` →
-`softfloat.a`. Verified building on arm64 (Apple Silicon) and x86-64, and
-functionally (80-bit add + store-to-f32 correct).
+Build (either arch) through the project build:
+`meson compile -C BUILD_DIR softfloat` → `libcoduomp_softfloat.a`. The
+upstream vendor Makefile remains available for standalone verification:
+`make -C vendor/softfloat/build/coduo-x87` → `softfloat.a`. Verified building
+on arm64 (Apple Silicon) and x86-64, and functionally (80-bit add +
+store-to-f32 correct).

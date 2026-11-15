@@ -86,7 +86,6 @@ void Com_Frame(void)
     SV_Frame(realMsec);
 
     if (dedicated->modified != qfalse) {
-        const int32_t previousDedicated = dedicated->integer;
         (void)Cvar_Get("dedicated", "0", 0);
         dedicated->modified = qfalse;
 

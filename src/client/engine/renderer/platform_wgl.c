@@ -113,8 +113,7 @@ qboolean GLW_InitDriver(int32_t colorBits)
         ri.Printf(
             R_PRINT_ALL,
             "video card cannot set mode %ix%i because "
-            "GL_MAX_TEXTURE_SIZE is only %i
-",
+            "GL_MAX_TEXTURE_SIZE is only %i\n",
             glConfig.vidWidth, glConfig.vidHeight, maximumTextureSize);
         return qfalse;
     }
@@ -125,7 +124,7 @@ qboolean GLW_InitDriver(int32_t colorBits)
     return qtrue;
 }
 
-static qboolean GLW_CreateWindow(const char *driverName, int32_t width,
+qboolean GLW_CreateWindow(const char *driverName, int32_t width,
                                  int32_t height, int32_t colorBits,
                                  int32_t windowMode)
 {
@@ -136,8 +135,7 @@ static qboolean GLW_CreateWindow(const char *driverName, int32_t width,
         coduompRendererDisplayIndex, r_displayRefresh->integer);
     if (created == qfalse) {
         ri.Printf(R_PRINT_WARNING,
-                  "WARNING: SDL window setup failed: %s
-",
+                  "WARNING: SDL window setup failed: %s\n",
                   coduomp_sdl_error_compat());
     }
     return created;
@@ -166,32 +164,25 @@ void GLW_PrintDisplayChangeError(int32_t result)
 {
     switch (result) {
     case R_DISPLAY_CHANGE_BAD_PARAMETER:
-        ri.Printf(R_PRINT_ALL, "bad param
-");
+        ri.Printf(R_PRINT_ALL, "bad param\n");
         break;
     case R_DISPLAY_CHANGE_BAD_FLAGS:
-        ri.Printf(R_PRINT_ALL, "bad flags
-");
+        ri.Printf(R_PRINT_ALL, "bad flags\n");
         break;
     case R_DISPLAY_CHANGE_NOT_UPDATED:
-        ri.Printf(R_PRINT_ALL, "not updated
-");
+        ri.Printf(R_PRINT_ALL, "not updated\n");
         break;
     case R_DISPLAY_CHANGE_BAD_MODE:
-        ri.Printf(R_PRINT_ALL, "bad mode
-");
+        ri.Printf(R_PRINT_ALL, "bad mode\n");
         break;
     case R_DISPLAY_CHANGE_FAILED:
-        ri.Printf(R_PRINT_ALL, "DISP_CHANGE_FAILED
-");
+        ri.Printf(R_PRINT_ALL, "DISP_CHANGE_FAILED\n");
         break;
     case R_DISPLAY_CHANGE_RESTART_REQUIRED:
-        ri.Printf(R_PRINT_ALL, "restart required
-");
+        ri.Printf(R_PRINT_ALL, "restart required\n");
         break;
     default:
-        ri.Printf(R_PRINT_ALL, "unknown error %d
-", result);
+        ri.Printf(R_PRINT_ALL, "unknown error %d\n", result);
         break;
     }
 }
@@ -208,8 +199,7 @@ renderer_mode_set_result_t GLW_SetMode(
     if (coduompRendererDisplayIndex < 0 ||
         coduompRendererDisplayIndex >= displayCount) {
         ri.Printf(R_PRINT_WARNING,
-                  "WARNING: display %d is unavailable; using display 1
-",
+                  "WARNING: display %d is unavailable; using display 1\n",
                   coduompRendererDisplayIndex + 1);
         coduompRendererDisplayIndex = 0;
     }
@@ -231,8 +221,7 @@ renderer_mode_set_result_t GLW_SetMode(
                     displayInfo.builtin != qfalse ? "1" : "0");
         ri.Printf(
             R_PRINT_ALL,
-            "...display %d/%d: logical %dx%d, backing %dx%d, native %dx%d%s
-",
+            "...display %d/%d: logical %dx%d, backing %dx%d, native %dx%d%s\n",
             coduompRendererDisplayIndex + 1, displayCount,
             displayInfo.logicalWidth, displayInfo.logicalHeight,
             displayInfo.backingWidth, displayInfo.backingHeight,
@@ -267,8 +256,7 @@ renderer_mode_set_result_t GLW_SetMode(
     if (mode == R_CURRENT_DISPLAY_VIDEO_MODE) {
         ri.Printf(R_PRINT_ALL, "...setting automatic hardware mode:");
         if (currentDisplayModeAvailable == qfalse) {
-            ri.Printf(R_PRINT_ALL, " unavailable
-");
+            ri.Printf(R_PRINT_ALL, " unavailable\n");
             return R_MODE_SET_INVALID;
         }
         glConfig.vidWidth = currentDisplayWidth;
@@ -282,8 +270,7 @@ renderer_mode_set_result_t GLW_SetMode(
         ri.Printf(R_PRINT_ALL, "...setting mode %d:", mode);
         if (R_GetModeInfo(&glConfig.vidWidth, &glConfig.vidHeight,
                           &glConfig.windowAspect, mode) == qfalse) {
-            ri.Printf(R_PRINT_ALL, " invalid mode
-");
+            ri.Printf(R_PRINT_ALL, " invalid mode\n");
             return R_MODE_SET_INVALID;
         }
     }
@@ -320,8 +307,7 @@ renderer_mode_set_result_t GLW_SetMode(
     }
 
     ri.Printf(
-        R_PRINT_ALL, " %d %d %s
-",
+        R_PRINT_ALL, " %d %d %s\n",
         glConfig.vidWidth, glConfig.vidHeight,
         windowMode == R_WINDOW_MODE_FULLSCREEN
             ? "FS"

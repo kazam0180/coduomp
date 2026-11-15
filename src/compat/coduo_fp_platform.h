@@ -2,7 +2,7 @@
  * coduo_fp_platform.h — floating-point platform policy (shared, whole-program)
  *
  * Defines the single source-level feature flag EMULATE_X87. This is the header
- * half of the FP-faithfulness policy; the build half is build-mk/x87-policy.mk.
+ * half of the FP-faithfulness policy; the build half is meson.build.
  * See docs/components/server/fp-faithfulness.md (current -mfpmath=387
  * policy) and docs/platform-discrepancies/fp-emulation-design.md (the
  * emulation plan this flag anchors).
@@ -40,8 +40,10 @@
  *   arm64 / any other arch        -> 1   no x87 possible -> emulate (never errors)
  *
  * The x86-64 #error fires only when building x86-64 by hand without -mfpmath=387
- * (or with clang). The project Makefiles always pass -mfpmath=387 on x86-64, so
- * the normal build path never hits it.
+ * (or with clang). The Meson build defines EMULATE_X87 explicitly for every
+ * target: client and module targets use native floating point (EMULATE_X87=0),
+ * while server targets add -mfpmath=387 on x86-64 unless fp_faithful=relaxed.
+ * The normal build path therefore never reaches this autodetection error.
  * -----------------------------------------------------------------------------
  */
 #ifndef CODUO_FP_PLATFORM_H

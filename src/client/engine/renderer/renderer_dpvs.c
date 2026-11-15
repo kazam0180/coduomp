@@ -2285,8 +2285,10 @@ renderer_dpvs_plane_t *R_PortalClipPlanesInternal(
         relativeVertices[vertexIndex][2] =
             vertices[vertexIndex][2] - rendererDpvsViewOrigin[2];
     }
-    memcpy(relativeVertices[vertexCount], relativeVertices[0],
-           sizeof(vec3_t));
+    if (vertexCount > 0) {
+        memcpy(relativeVertices[vertexCount], relativeVertices[0],
+               sizeof(vec3_t));
+    }
 
     for (int32_t edgeIndex = 0;
          edgeIndex < vertexCount;

@@ -10,6 +10,7 @@ void coduomp_output_gamma_initialize_compat(void);
 qboolean coduomp_output_gamma_activate_software_compat(
     const char *reason);
 qboolean coduomp_output_gamma_software_active_compat(void);
+qboolean coduomp_output_gamma_texture_fallback_active_compat(void);
 void coduomp_output_gamma_set_lut_compat(
     const uint8_t red[256], const uint8_t green[256],
     const uint8_t blue[256]);

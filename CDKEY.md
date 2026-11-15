@@ -38,9 +38,9 @@ The primary key then belongs at:
 /absolute/path/to/profile/codkey
 ```
 
-This also applies when `CLIENT_HOME_PATH` is supplied to `make client-run`.
-That target requires the selected home path to remain below the repository's
-`.workbench/runtime/` directory.
+The same location rule applies to any launcher that sets `fs_homepath`
+explicitly. The `client-test-run` Meson target requires its home path to remain
+below the repository's `.workbench/runtime/` directory.
 
 ## File contents
 

@@ -11,21 +11,31 @@ The exported tree is organized as normal buildable C/C++ source:
 - `src/server/engine/`: server engine code shared with an embedded listen
   server.
 - common subsystems live directly below `src/`.
-- `build-mk/server.mk`: compile and link targets for the maintained engine.
+- `meson.build` and `server/meson.build`: compile and link targets for the
+  maintained engine.
 
 ## Build
 
 ```sh
-make -f build-mk/server.mk objects CODUO_FP_FAITHFUL=relaxed
-make -f build-mk/server.mk shared-check-link CODUO_FP_FAITHFUL=relaxed
+meson setup .workbench/build/server -Dclient=false
+meson compile -C .workbench/build/server server
 ```
 
-The default `check` target compiles the maintained source into a static archive.
-The shared link check permits unresolved engine-internal symbols while more
-subsystems are completed.
+This builds the dedicated executable and the server game module. The
+executable is written to
+`.workbench/build/server/server/coduo_lnxded_recovered`. The module is written
+to `.workbench/build/server/server/uo/game.mp.uo.x86_64.so`.
 
-The original Linux server is an i386 program. Build targets that use `-m32`
-require a Linux toolchain with 32-bit compiler and library support installed.
+The original Linux server is an i386 program. Build a 32-bit server with:
+
+```sh
+meson setup .workbench/build/server32 --cross-file cross/linux-i386.ini \
+  -Dclient=false
+meson compile -C .workbench/build/server32 server
+```
+
+That requires a Linux toolchain with 32-bit compiler and library support
+installed.
 
 ## Game-type voting
 

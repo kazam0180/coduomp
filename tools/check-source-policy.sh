@@ -10,7 +10,7 @@ fi
 cd "$repo_root"
 
 source_paths=()
-for path in assets src build-mk vendor; do
+for path in assets cross meson src uo server vendor; do
     if [[ -e "$path" ]]; then
         source_paths+=("$path")
     fi
@@ -28,7 +28,7 @@ else
 fi
 
 scan_paths=("${source_paths[@]}")
-for path in Makefile README.md CDKEY.md CHANGELOG.md docs packaging tools; do
+for path in meson.build meson_options.txt README.md CDKEY.md CHANGELOG.md docs packaging tools; do
     if [[ -e "$public_frontend/$path" ]]; then
         scan_paths+=("$public_frontend/$path")
     fi
@@ -85,6 +85,14 @@ if search_public \
     'coduo-binary-analysis|/Users/[^/]+/|/home/[^/]+/(llm|src|work)|[A-Za-z]:\\\\Users\\\\[^\\\\]+' \
     "${scan_paths[@]}"; then
     echo "error: public source contains a machine-specific workspace path" >&2
+    failed=1
+fi
+
+if ! python3 "$repo_root/tools/check-softfloat-manifest.py"; then
+    failed=1
+fi
+
+if ! python3 "$repo_root/tools/check-client-manifests.py"; then
     failed=1
 fi
 

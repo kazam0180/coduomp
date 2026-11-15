@@ -70,6 +70,6 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Optional renderer profiling
 
-- Custom builds made with `CODUOMP_RENDERER_GPU_PROFILE=1` expose GPU timing controls. These diagnostics and cvars are excluded from normal release builds.
+- Custom builds made with `-Drenderer_gpu_profile=true` expose GPU timing controls. These diagnostics and cvars are excluded from normal release builds.
 - `r_gpuProfile` selects off (`0`, the default), slow-frame logging (`1`), or every-frame logging (`2`). `r_gpuProfileSlowMsec` sets the slow-frame threshold in milliseconds (default `4.0`).
 - `r_gpuProfileDetail` selects whole-frame timing (`0`, the default), command-phase timing (`1`), or invasive per-batch timing (`2`). Profiling controls are temporary and are not saved to the client configuration.

@@ -50,4 +50,3 @@ int coduomp_crt_putenv_copy(const char *assignment)
     free(name);
     return result;
 }
-}

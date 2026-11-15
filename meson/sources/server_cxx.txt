@@ -1,0 +1,2 @@
+src/scripting/script_error_exception.cpp
+src/scripting/script_vm.cpp

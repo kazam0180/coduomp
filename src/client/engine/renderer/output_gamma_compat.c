@@ -155,6 +155,13 @@ qboolean coduomp_output_gamma_software_active_compat(void)
     return coduompOutputGammaSoftwareActive;
 }
 
+/* NOT_FROM_ORIGINAL_SOURCE: the recovered renderer always keeps the
+   texture-based gamma table available as a fallback. */
+qboolean coduomp_output_gamma_texture_fallback_active_compat(void)
+{
+    return qtrue;
+}
+
 /* NOT_FROM_ORIGINAL_SOURCE: upload the recovered renderer's actual final RGB
  * lookup table. The alpha component remains identity because display gamma
  * never changed framebuffer alpha. */

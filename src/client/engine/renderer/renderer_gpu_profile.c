@@ -1355,8 +1355,8 @@ static qboolean coduomp_gpu_profile_load_api(void)
 
 /* NOT_FROM_ORIGINAL_SOURCE: register runtime controls only in the dedicated
  * profiling build. Build it with:
- * make client BUILD_DIR=.workbench/build/gpu-profile
- * CODUOMP_RENDERER_GPU_PROFILE=1 */
+ * meson setup .workbench/build/gpu-profile -Drenderer_gpu_profile=true
+ * meson compile -C .workbench/build/gpu-profile */
 void coduomp_gpu_profile_register(void)
 {
     coduompGpuProfileFrontendStartNanoseconds = 0;

@@ -3968,7 +3968,6 @@ void RB_SingleStageGenericARB2(shaderStage_t *stage, int32_t indexCount,
         /* Preserve the target x86 INC's 32-bit modulo behavior. */
         backEnd.dynamicBuffer.frameSerial = (int32_t)(
             (uint32_t)backEnd.dynamicBuffer.frameSerial + 1u);
-    }
         buffer = (uint32_t)backEnd.dynamicBuffer.frameSerial;
     }
 

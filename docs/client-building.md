@@ -23,22 +23,29 @@ Offensive installation to run the resulting client.
   subsystems used by the executable and modules.
 - `src/server/engine/`: server engine code also used by the executable's
   embedded listen server.
-- `build-mk/`: explicit target source manifests and target build rules.
+- `meson.build`, `meson/sources/`, `uo/meson.build`: Meson target definitions
+  and explicit source manifests.
+- `cross/linux-i386.ini`: 32-bit x86 cross file.
 
 ## Build
 
-The native executable currently supports 32-bit and 64-bit x86 Linux.
+The native executable currently supports 32-bit and 64-bit x86 Linux. Meson
+and Ninja are the build system; no Makefile is used.
 
 ### Debian 12
 
-Install the compiler and development packages:
+Install the build tools, compiler, and development packages:
 
 ```sh
 sudo apt update
-sudo apt install build-essential pkg-config libsdl2-dev libjpeg-dev \
-  libcurl4-openssl-dev libminizip-dev zlib1g-dev libgl1-mesa-dev \
+sudo apt install build-essential meson ninja-build pkg-config libsdl2-dev \
+  libjpeg-dev libcurl4-openssl-dev libminizip-dev zlib1g-dev libgl1-mesa-dev \
   libopenal-dev libsndfile1-dev
 ```
+
+`libjpeg-dev` provides libjpeg-turbo, which exports the `JCS_EXT_RGBX`
+colorspace used by the client. libjpeg 6 is not required. Meson checks for
+that symbol at configure time and rejects a libjpeg build without it.
 
 For a 32-bit build on an x86-64 Debian host, also enable i386 packages and
 install the multilib compilers and 32-bit dependencies:
@@ -46,37 +53,42 @@ install the multilib compilers and 32-bit dependencies:
 ```sh
 sudo dpkg --add-architecture i386
 sudo apt update
-sudo apt install gcc-multilib g++-multilib pkg-config libsdl2-dev:i386 \
-  libjpeg-dev:i386 libcurl4-openssl-dev:i386 libminizip-dev:i386 \
-  zlib1g-dev:i386 libgl1-mesa-dev:i386 libopenal-dev:i386 \
-  libsndfile1-dev:i386
+sudo apt install gcc-multilib g++-multilib meson ninja-build pkg-config \
+  libsdl2-dev:i386 libjpeg-dev:i386 libcurl4-openssl-dev:i386 \
+  libminizip-dev:i386 zlib1g-dev:i386 libgl1-mesa-dev:i386 \
+  libopenal-dev:i386 libsndfile1-dev:i386
 ```
 
-After installing the dependencies, build the executable and
-its architecture-matched cgame, UI, and listen-server game modules:
+Build the executable and its architecture-matched cgame, UI, and listen-server
+game modules:
 
 ```sh
-make
+meson setup .workbench/build/client
+meson compile -C .workbench/build/client
 ```
 
-The executable is written to `.workbench/build/client/native/CoDUOMP`, and its
-modules are staged under `.workbench/build/client/native/uo/`.
+The executable is written to `.workbench/build/client/CoDUOMP`, and its modules
+are staged under `.workbench/build/client/uo/`. The dedicated server and server
+game module are built by the same default configuration unless
+`-Dserver=false` is passed.
 
-On Linux, the explicit architecture targets build the complete executable,
-cgame, UI, and listen-server game-module set. They use GCC multilib mode and
-keep their outputs separate:
+Use a separate build directory for the 32-bit cross build:
 
 ```sh
-make client-linux32
-make client-linux64
+meson setup .workbench/build/client32 --cross-file cross/linux-i386.ini
+meson compile -C .workbench/build/client32
 ```
+
+The cross file limits pkg-config to 32-bit and architecture-independent
+directories. Setup fails early if a 32-bit development package is missing
+instead of linking a 64-bit library into the client.
 
 Create complete archives with all three architecture-matched multiplayer
 modules under `uo/` with:
 
 ```sh
-make client-linux32-package
-make client-linux64-package
+meson compile -C .workbench/build/client client-linux64-package
+meson compile -C .workbench/build/client32 client-linux32-package
 ```
 
 The resulting archives are written under `.workbench/build/linux/`. They
@@ -85,22 +97,35 @@ Linux system libraries. Package staging strips debug and local-symbol data
 and checks for build debris and symlinks. It does not require a hostname utility
 or scan embedded strings for the builder's identity or paths.
 
+Build options are set when the build directory is created:
+
+```sh
+meson setup .workbench/build/gpu-profile \
+  -Drenderer_gpu_profile=true \
+  -Dfp_faithful=relaxed
+```
+
+`fp_faithful=auto` and `strict` require a compiler that accepts
+`-mfpmath=387` on x86-64. Use `relaxed` only for an acknowledged non-exact
+build.
+
 To launch it as the normal system game, point `CLIENT_DATA_PATH` at a legally
 owned retail installation root containing both `main/` and `uo/`:
 
 ```sh
-make client-run \
-  CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
-  CLIENT_ARGS="+set r_fullscreen 0 +set r_mode 6"
+CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
+CLIENT_ARGS="+set r_fullscreen 0 +set r_mode 6" \
+meson compile -C .workbench/build/client client-run
 ```
 
 `client-run` uses the persistent system profile, so normal configuration,
 favorites, downloads, and screenshots remain available.
 
-Automated and development tests must instead use `make client-test-run` with
-the same `CLIENT_DATA_PATH` and optional `CLIENT_ARGS`. That target forces
+Automated and development tests must instead use the `client-test-run` target
+with the same `CLIENT_DATA_PATH` and optional `CLIENT_ARGS`. That target forces
 `fs_homepath` below `.workbench/runtime/` and will not access the personal
-profile. Agents must never invoke `client-run` for testing.
+profile. `CLIENT_TEST_WORK_DIR` and `CLIENT_TEST_HOME_PATH` select isolated
+directories. Agents must never invoke `client-run` for testing.
 
 For compiler-gated OpenGL GPU timing, renderer-phase attribution, and batch
 census captures, see [Renderer GPU profiling](client-renderer-gpu-profiling.md).
@@ -118,6 +143,7 @@ audio backend on these clients.
 Linux builds default `CASE_SENSITIVE_FS=1`. This preserves the original
 case-insensitive game-file lookup on a case-sensitive host filesystem without
 renaming retail or mod files.
+
 
 ### Developer packages and official releases
 

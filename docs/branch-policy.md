@@ -50,8 +50,8 @@ For every transcription bug fix:
 
 1. Implement, validate, and commit the change on `stock` first.
 2. Merge `stock` into `master`, preserving the stock commit's ancestry.
-3. Validate the merged result on `master`, including `make policy-check` in
-   both worktrees, and complete both branches in the same work cycle.
+3. Validate the merged result on `master`, including the `policy-check` Meson
+   target in both worktrees, and complete both branches in the same work cycle.
 
 Use a forward merge rather than duplicate cherry-picks or independently
 reapplying the patch. A transcription correction is incomplete while present
@@ -69,4 +69,4 @@ recipes, severity assessments, vulnerable-retail trigger comparisons, or
 labels such as `SECURITY_PATCH`. Use a private maintainer channel for those
 details and express the public rule directly.
 
-Run `make policy-check` on both branches before release.
+Run the `policy-check` Meson target on both branches before release.

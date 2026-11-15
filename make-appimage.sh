@@ -2,7 +2,7 @@
 
 set -eu
 
-[ -f Makefile ] && [ -d src ] || {
+[ -f meson.build ] && [ -d src ] || {
 	echo "ERROR: run from the repository root after ./get-dependencies.sh." >&2
 	exit 1
 }

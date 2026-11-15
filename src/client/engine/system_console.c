@@ -20,7 +20,6 @@ void *sysConsoleInputWindow;
 qboolean sysWindowActive;
 qboolean sysWindowMinimized;
 
-static int32_t sysConsoleVisibility;
 static qboolean sysConsoleQuitOnClose;
 static char sysConsoleErrorText[SYS_CONSOLE_ERROR_TEXT_CAPACITY];
 static char sysConsoleInputLine[SYS_CONSOLE_INPUT_CAPACITY];

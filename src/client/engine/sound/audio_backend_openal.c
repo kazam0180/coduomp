@@ -1273,7 +1273,6 @@ static sf_count_t openal_sndfile_tell(void *clientData)
     const openal_memory_file_t *const file = clientData;
     return (sf_count_t)file->position;
 }
-#endif
 
 static int32_t openal_stream_buffer_index(
     const struct audio_stream_handle_s *stream, ALuint buffer)
@@ -1323,7 +1322,6 @@ static qboolean openal_stream_fill_buffer(
     const uint32_t byteCount =
         (uint32_t)decodedFrames *
         (uint32_t)stream->soundInfo.channels * 2u;
-#endif
     openal_clear_error();
     alBufferData(stream->buffers[bufferIndex], format,
                  stream->decodePcmBuffer, (ALsizei)byteCount,
@@ -1450,7 +1448,6 @@ static qboolean openal_open_stream_decoder(
     if (stream->decodePcmBuffer == NULL)
         return qfalse;
     return qtrue;
-}
 }
 
 static qboolean openal_read_file(
@@ -2894,5 +2891,3 @@ const audio_backend_api_t openal_backend = {
     .api_set_3D_sample_offset = openal_set_3D_sample_offset,
     .api_start_3D_sample = openal_start_3D_sample,
 };
-
-#endif

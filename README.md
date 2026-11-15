@@ -24,7 +24,8 @@ See [the changelog](CHANGELOG.md) for a concise list of user-visible differences
   enhancements.
 
 See [the branch policy](docs/branch-policy.md) for the exact boundary. Run
-`make policy-check` before committing or releasing either branch.
+`tools/check-source-policy.sh` (or the `policy-check` Meson target) before
+committing or releasing either branch.
 
 ## Layout
 
@@ -36,7 +37,8 @@ See [the branch policy](docs/branch-policy.md) for the exact boundary. Run
 - `src/server/game/`: server game module.
 - `src/`: common qcommon, math, BG, collision, filesystem, animation,
   scripting, sound, and compatibility subsystems.
-- `build-mk/`: explicit source manifests and component build rules.
+- `meson.build`, `meson/`, `uo/`, and `server/`: Meson build definitions and
+  explicit source manifests.
 - `vendor/`: tracked third-party source required by the builds.
 
 ## Build
@@ -46,27 +48,58 @@ the client, but the retail game files are not part of the source build.
 
 ### Debian or Ubuntu Linux (x86-64)
 
-Install the compiler and development packages:
+Install the build tools and development packages:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential pkg-config libsdl2-dev libjpeg-dev \
-  libcurl4-openssl-dev libminizip-dev zlib1g-dev libgl1-mesa-dev \
-  libopenal-dev libsndfile1-dev
+sudo apt-get install -y build-essential meson ninja-build pkg-config \
+  libsdl2-dev libjpeg-dev libcurl4-openssl-dev libminizip-dev zlib1g-dev \
+  libgl1-mesa-dev libopenal-dev libsndfile1-dev
 ```
 
-Build the native client executable, cgame, and UI:
+`libjpeg-dev` provides libjpeg-turbo, which exports the `JCS_EXT_RGBX`
+colorspace used by the client. libjpeg 6 is not required. Meson checks for
+that symbol at configure time and rejects a libjpeg build without it.
+
+Configure and build the native client executable, cgame, UI, listen-server game
+module, dedicated server, and server game module:
 
 ```sh
-make
+meson setup .workbench/build/meson
+meson compile -C .workbench/build/meson
 ```
 
-To build a complete x86-64 client archive or the dedicated server and matching
-game module:
+The main outputs are:
+
+```text
+.workbench/build/meson/CoDUOMP
+.workbench/build/meson/uo/uo_cgame_mp_x86_64.so
+.workbench/build/meson/uo/uo_ui_mp_x86_64.so
+.workbench/build/meson/uo/uo_game_mp_x86_64.so
+.workbench/build/meson/server/coduo_lnxded_recovered
+.workbench/build/meson/server/uo/game.mp.uo.x86_64.so
+```
+
+Build options are listed by:
 
 ```sh
-make client-linux64-package
-make server64
+meson configure .workbench/build/meson
+```
+
+Dedicated-server authorization is disabled by default. Enable it, or
+instrument renderer GPU timing at setup time:
+
+```sh
+meson setup .workbench/build/server-auth -Dserver_auth=true
+meson setup .workbench/build/gpu-profile -Drenderer_gpu_profile=true
+```
+
+The PunkBuster recovery path imports i386 C++ runtime symbols, so it is
+32-bit only. Configure it with the i386 cross file:
+
+```sh
+meson setup .workbench/build/punkbuster \
+  --cross-file cross/linux-i386.ini -Dpunkbuster=true
 ```
 
 ### Debian or Ubuntu Linux (32-bit on an x86-64 host)
@@ -77,88 +110,90 @@ set:
 ```sh
 sudo dpkg --add-architecture i386
 sudo apt-get update
-sudo apt-get install -y build-essential gcc-multilib g++-multilib pkg-config \
-  libsdl2-dev:i386 libjpeg-dev:i386 libcurl4-openssl-dev:i386 \
-  libminizip-dev:i386 zlib1g-dev:i386 libgl1-mesa-dev:i386 \
-  libopenal-dev:i386 libsndfile1-dev:i386
+sudo apt-get install -y build-essential gcc-multilib g++-multilib meson \
+  ninja-build pkg-config libsdl2-dev:i386 libjpeg-dev:i386 \
+  libcurl4-openssl-dev:i386 libminizip-dev:i386 zlib1g-dev:i386 \
+  libgl1-mesa-dev:i386 libopenal-dev:i386 libsndfile1-dev:i386
 ```
 
-Build the 32-bit client archive or dedicated server:
+Configure and build with the i386 cross file:
 
 ```sh
-make client-linux32-package
-make server32
+meson setup .workbench/build/meson32 --cross-file cross/linux-i386.ini
+meson compile -C .workbench/build/meson32
 ```
+
+The cross file limits pkg-config to 32-bit and architecture-independent
+directories. Setup fails early if a 32-bit development package is missing
+instead of linking a 64-bit library into the client.
+
+The 32-bit modules are named `uo_cgame_mp_x86.so`, `uo_ui_mp_x86.so`,
+`uo_game_mp_x86.so`, and `game.mp.uo.i386.so`.
+
+### Packaging
+
+Build a complete architecture-matched client archive:
+
+```sh
+meson compile -C .workbench/build/meson client-linux64-package
+meson compile -C .workbench/build/meson32 client-linux32-package
+```
+
+Archives are written under `.workbench/build/linux/`. They contain the
+reconstructed executable and modules, but no retail game data or Linux system
+libraries. Package staging strips debug and local-symbol data and checks for
+build debris and symlinks.
 
 ### Selecting Linux compilers
 
-Compiler commands are configurable Make variables. The ordinary native
-`client` target uses `CC` and `CXX`:
+Meson reads the compiler from the environment when a build directory is
+created. Use a fresh build directory when changing compilers or important
+flags:
 
 ```sh
-make client \
-  BUILD_DIR=.workbench/build/client-gcc16 \
-  CC=gcc-16 CXX=g++-16
+CC=gcc-16 CXX=g++-16 meson setup .workbench/build/meson-gcc16
+meson compile -C .workbench/build/meson-gcc16
 ```
 
-The explicit architecture targets use `LINUX64_CC`/`LINUX64_CXX` or
-`LINUX32_CC`/`LINUX32_CXX`. For example, build complete packages with a
-particular GCC version using:
-
-```sh
-make client-linux64-package \
-  BUILD_DIR=.workbench/build/linux-x86_64-gcc16 \
-  LINUX64_CC=gcc-16 LINUX64_CXX=g++-16
-
-make client-linux32-package \
-  BUILD_DIR=.workbench/build/linux-i686-gcc16 \
-  LINUX32_CC=gcc-16 LINUX32_CXX=g++-16
-```
-
-Use a fresh `BUILD_DIR` when changing compilers or important compiler flags;
-Make does not otherwise know that existing objects were produced by a
-different toolchain. Compiler variables may also name absolute paths or
+For the 32-bit cross build, set the compilers in `cross/linux-i386.ini` or pass
+a modified cross file. Compiler commands may also name absolute paths or
 compiler-wrapper commands.
 
 Faithful x86 and x86-64 builds require a GCC-compatible compiler that supports
 the x87 options selected by the build. Clang does not implement
 `-mfpmath=387`, so the default fidelity policy rejects it for these targets.
-`CODUO_FP_FAITHFUL=relaxed` permits such a build for portability work, but its
+`-Dfp_faithful=relaxed` permits such a build for portability work, but its
 floating-point behavior is not the validated faithful configuration.
 
-Build and package with the targets below and in the
-[client build guide](docs/client-building.md). Official release orchestration
-and maintainer privacy checks are separate from these developer targets.
+### Running the client
 
-Generated build, package, and runtime files stay under `.workbench/`. Package
-targets create complete architecture-matched archives without retail game
-data. Use `make help` for additional build options.
-
-To build and run the native client as the normal system game, point it at a
+Build and run the native client as the normal system game by pointing it at a
 game-data root containing `main/` and `uo/`:
 
 ```sh
-make client-run \
-  CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
-  CLIENT_ARGS="+set r_fullscreen 1"
+CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
+CLIENT_ARGS="+set r_fullscreen 1" \
+meson compile -C .workbench/build/meson client-run
 ```
 
 `client-run` uses the system's persistent OpenCoDUO profile, including normal
-configuration, favorites, downloads, and screenshots.
+configuration, favorites, downloads, and screenshots. `CLIENT_WORK_DIR` may
+override its working directory, which must remain below `.workbench/runtime/`.
 
 Automated and development tests must use the isolated launcher instead:
 
 ```sh
-make client-test-run \
-  CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
-  CLIENT_ARGS="+set r_fullscreen 0"
+CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
+CLIENT_ARGS="+set r_fullscreen 0" \
+meson compile -C .workbench/build/meson client-test-run
 ```
 
 `client-test-run` always supplies an explicit `fs_homepath` below
 `.workbench/runtime/`; it will refuse a runtime or home directory outside that
-root. Agents must never use `client-run` for testing.
+root. `CLIENT_TEST_WORK_DIR` and `CLIENT_TEST_HOME_PATH` override the isolated
+directories. Agents must never use `client-run` for testing.
 
-To launch an existing native build in isolation without rebuilding it, run the
+To launch an existing native build without using a Meson run target, run the
 following from the repository root:
 
 ```sh
@@ -166,16 +201,22 @@ CODUOMP_ROOT="$(pwd -P)"
 mkdir -p "$CODUOMP_ROOT/.workbench/runtime/manual/home"
 cd "$CODUOMP_ROOT/.workbench/runtime/manual"
 
-"$CODUOMP_ROOT/.workbench/build/client/native/CoDUOMP" \
-  +set fs_basepath "$CODUOMP_ROOT/.workbench/build/client/native" \
+"$CODUOMP_ROOT/.workbench/build/meson/CoDUOMP" \
+  +set fs_basepath "$CODUOMP_ROOT/.workbench/build/meson" \
   +set fs_cdpath "/absolute/path/to/Call of Duty UO" \
   +set fs_homepath "$CODUOMP_ROOT/.workbench/runtime/manual/home"
 ```
 
 `fs_basepath` locates the reconstructed native cgame and UI modules staged
-under `.workbench/build/client/native/uo/`. `fs_cdpath` locates the game-data
-`main/` and `uo/` directories. `fs_homepath` keeps generated configuration,
-logs, downloads, and caches isolated from personal profiles.
+under `.workbench/build/meson/uo/`. `fs_cdpath` locates the game-data `main/`
+and `uo/` directories. `fs_homepath` keeps generated configuration, logs,
+downloads, and caches isolated from personal profiles.
+
+Validate source-policy invariants before committing or releasing:
+
+```sh
+meson compile -C .workbench/build/meson policy-check
+```
 
 On the `master` branch, see [client gamma control](docs/client-gamma.md) for
 the selectable output-gamma policies and provider order.
