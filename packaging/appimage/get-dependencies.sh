@@ -15,12 +15,12 @@ pacman -Syu --noconfirm \
 	ninja \
 	minizip \
 	nasm \
-	openal
+	openal \
+	libjpeg-turbo
 
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
 get-debloated-pkgs --add-mesa --prefer-nano libdecor-mini
-make-aur-package libjpeg-turbo
 make-aur-package sdl2
 
 build_dir=.workbench/build/meson
