@@ -519,6 +519,10 @@ void Cmd_ExecuteString(const char *text)
         link = &command->next;
     }
 
+    /* The pb_ prefix and nested sv_ suffix match case-insensitively on every
+     * platform, so a mixed-case command cannot fall through as an unknown
+     * command. The dedicated server has no client PunkBuster hook; only the
+     * sv_ form dispatches, and every other pb_ command stops here. */
     if (Q_stricmpn(text, "pb_", 3) == 0) {
         if (Q_stricmpn(text + 3, "sv_", 3) == 0) {
             PB_DispatchServerConsoleCommand(text);

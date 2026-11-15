@@ -111,7 +111,7 @@ void FS_Startup(const char *gameName)
      * registers the string at RVA 0x194644. Preserve the spelling for
      * compatibility with existing commands and configurations. */
     fs_ignoreLocalized = Cvar_Get(
-        "fs_ignoreLozalized", "0",
+        "fs_ignoreLocalized", "0",
         CVAR_LATCH | CVAR_CHEAT);
 
     if (fs_cdpath->string[0] != '\0')
