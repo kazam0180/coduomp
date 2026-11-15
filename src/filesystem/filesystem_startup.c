@@ -115,7 +115,7 @@ void FS_Startup(const char *gameName)
     fs_restrict = Cvar_Get(
         "fs_restrict", "", CVAR_INIT);
     fs_ignoreLocalized = Cvar_Get(
-        "fs_ignoreLozalized", "0",
+        "fs_ignoreLocalized", "0",
         CVAR_LATCH | CVAR_CHEAT);
 
     if (fs_cdpath->string[0] != '\0')

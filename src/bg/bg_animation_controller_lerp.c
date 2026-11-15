@@ -2,7 +2,6 @@
 
 #include "compat/coduo_int32_bits.h"
 #include "compat/coduo_x87emu.h"
-#include "math/q_math.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -22,8 +21,11 @@
  *
  * Supporting Mac cgame/game retain both canonical names with equal sizes and
  * call graphs. Linux game retains BG_LerpAngles at RVA 0x0001f107 and
- * BG_LerpOffset at RVA 0x0001f1e7. The latter contains a genuine malformed
- * Q_rsqrt call/return ABI, so BG_LerpOffset has whole-function platform bodies.
+ * BG_LerpOffset at RVA 0x0001f1e7. The original Linux BG_LerpOffset passed a
+ * double to Q_rsqrt and consumed the float return's bits as a signed integer,
+ * so its step came out about a billion times too large and the offset snapped
+ * to its target instead of interpolating. BG_LerpOffset now uses the Windows
+ * reference body on every platform.
  */
 
 void BG_LerpAngles(const vec3_t target, float maxStep, vec3_t current)
@@ -87,7 +89,14 @@ void BG_LerpAngles(const vec3_t target, float maxStep, vec3_t current)
     }
 }
 
-#if defined(WINDOWS_BEHAVIOR)
+/*
+ * BG_LerpOffset has one body on every platform: the Windows reference
+ * computation. The original Linux i386 build passed a double to Q_rsqrt and
+ * read the float return's bits as a signed integer, so the derived step was
+ * about 1.6e9 * scale and always took the snap branch instead of moving.
+ * This body advances the offset by scale / |delta| each frame, matching
+ * Windows.
+ */
 void BG_LerpOffset(const vec3_t target, float scale, vec3_t current)
 {
     const float zero = 0.0f;
@@ -197,85 +206,3 @@ void BG_LerpOffset(const vec3_t target, float scale, vec3_t current)
         (float)((double)current[2] + (double)delta[2] * factor);
 #endif
 }
-#else
-/* NOT_FROM_ORIGINAL_SOURCE: reproduce the Linux i386 BG_LerpOffset call-site
- * ABI defect. The original passes a double to Q_rsqrt, then treats EAX's
- * retained float bits as a signed integer instead of consuming x87 ST0. */
-static float bg_compat_lerp_offset_qrsqrt_scale(float lengthSquared,
-                                                float scale)
-{
-    const double argument = (double)lengthSquared;
-    uint32_t lowWord;
-    float qrsqrtArgument;
-    float qrsqrtResult;
-    int32_t returnWord;
-
-    memcpy(&lowWord, &argument, sizeof(lowWord));
-    memcpy(&qrsqrtArgument, &lowWord, sizeof(qrsqrtArgument));
-    qrsqrtResult = Q_rsqrt(qrsqrtArgument);
-    memcpy(&returnWord, &qrsqrtResult, sizeof(returnWord));
-
-#if EMULATE_X87
-    return x87f_store_f32(
-        x87f_mul(x87f_load_i32(returnWord), x87f_load_f32(scale)));
-#else
-    return (float)((double)returnWord * scale);
-#endif
-}
-
-void BG_LerpOffset(const vec3_t target, float scale, vec3_t current)
-{
-    float delta[3];
-    float lengthSquared;
-    float step;
-
-#if EMULATE_X87
-    delta[0] = x87f_store_f32(
-        x87f_sub(x87f_load_f32(target[0]), x87f_load_f32(current[0])));
-    delta[1] = x87f_store_f32(
-        x87f_sub(x87f_load_f32(target[1]), x87f_load_f32(current[1])));
-    delta[2] = x87f_store_f32(
-        x87f_sub(x87f_load_f32(target[2]), x87f_load_f32(current[2])));
-    lengthSquared = x87f_store_f32(x87f_add(
-        x87f_add(x87f_mul(x87f_load_f32(delta[0]),
-                          x87f_load_f32(delta[0])),
-                 x87f_mul(x87f_load_f32(delta[1]),
-                          x87f_load_f32(delta[1]))),
-        x87f_mul(x87f_load_f32(delta[2]), x87f_load_f32(delta[2]))));
-#else
-    delta[0] = target[0] - current[0];
-    delta[1] = target[1] - current[1];
-    delta[2] = target[2] - current[2];
-    lengthSquared = delta[0] * delta[0] + delta[1] * delta[1] +
-                    delta[2] * delta[2];
-#endif
-
-    if (lengthSquared == 0.0f) {
-        return;
-    }
-
-    /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-    step = bg_compat_lerp_offset_qrsqrt_scale(lengthSquared, scale);
-    if (step < 1.0f) {
-#if EMULATE_X87
-        current[0] = x87f_store_f32(x87f_add(
-            x87f_mul(x87f_load_f32(delta[0]), x87f_load_f32(step)),
-            x87f_load_f32(current[0])));
-        current[1] = x87f_store_f32(x87f_add(
-            x87f_mul(x87f_load_f32(delta[1]), x87f_load_f32(step)),
-            x87f_load_f32(current[1])));
-        current[2] = x87f_store_f32(x87f_add(
-            x87f_mul(x87f_load_f32(delta[2]), x87f_load_f32(step)),
-            x87f_load_f32(current[2])));
-#else
-        current[0] = current[0] + delta[0] * step;
-        current[1] = current[1] + delta[1] * step;
-        current[2] = current[2] + delta[2] * step;
-#endif
-    } else {
-        current[0] = target[0];
-        current[1] = target[1];
-        current[2] = target[2];
-    }
-}
-#endif

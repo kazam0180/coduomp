@@ -221,25 +221,18 @@ static float xanim_eval_rotation_dot_store(
 static float xanim_eval_frame_time(int32_t frameCount, float time,
                                    int32_t *roundedFrame)
 {
-#if defined(WINDOWS_BEHAVIOR)
+    /* One computation on every platform: the Windows reference. The
+     * frameCount * time product is exact in the 80-bit register, because a
+     * 31-bit integer against a binary32 significand needs at most 55
+     * significand bits, so truncating that exact value selects the same key
+     * frame everywhere. Rounding the product to binary32 first, as the
+     * original Linux build did, can cross an integer boundary and shift the
+     * sampled frame by one. */
     const long double raw =
         (long double)frameCount * (long double)time;
 
     *roundedFrame = (int32_t)raw;
     return (float)raw;
-#elif EMULATE_X87
-    const x87f raw =
-        x87f_mul(x87f_load_i32(frameCount), x87f_load_f32(time));
-    const float stored = x87f_store_f32(raw);
-
-    *roundedFrame = x87f_store_i32_trunc(x87f_load_f32(stored));
-    return stored;
-#else
-    const float stored = time * (float)frameCount;
-
-    *roundedFrame = (int32_t)stored;
-    return stored;
-#endif
 }
 
 static float xanim_eval_lerp_i32(int32_t first, int32_t second,
@@ -532,8 +525,10 @@ void XAnimCalcDeltaParts(XAnimParts *record,
     }
 
     /* Windows 0x00497b4b stores the scaled time for interpolation but retains
-     * the PC=53 product for its integer conversion.  Linux
-     * 0x080bacd9..0x080bad02 converts the stored binary32 value instead. */
+     * the PC=53 product for its integer conversion.  The original Linux
+     * 0x080bacd9..0x080bad02 converted the stored binary32 value instead,
+     * which could shift the sampled frame by one; every platform here
+     * retains the exact product for the conversion. */
     int32_t roundedFrame;
     float frameTime =
         xanim_eval_frame_time(frameCount, time, &roundedFrame);
@@ -602,8 +597,10 @@ static void xanim_eval_accumulate_interpolated_parts(
     int32_t frameCount = record->frameCountMinusOne;
     float scaledWeight = xanim_eval_mul_store(weight, packedShortScale);
     /* Windows 0x00497026/0x00497416 retain the scaled-time product for the
-     * integer conversion.  Linux 0x080b9b91..0x080b9bc1 and
-     * 0x080ba199..0x080ba1c9 convert the stored binary32 value. */
+     * integer conversion.  The original Linux 0x080b9b91..0x080b9bc1 and
+     * 0x080ba199..0x080ba1c9 converted the stored binary32 value, which
+     * could shift the sampled frame by one; every platform here retains the
+     * exact product for the conversion. */
     int32_t roundedFrame;
     float frameTime =
         xanim_eval_frame_time(frameCount, time, &roundedFrame);
