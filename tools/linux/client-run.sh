@@ -40,7 +40,8 @@ set -- "$engine" \
     +set fs_cdpath "$CLIENT_DATA_PATH"
 
 if [ -n "${CLIENT_ARGS:-}" ]; then
-    # Match the previous Make target: CLIENT_ARGS is split by the shell.
+    # Split CLIENT_ARGS on whitespace like the previous Make target. Disable
+    # pathname expansion so a glob pattern reaches the game literally.
     set -f
     set -- "$@" $CLIENT_ARGS
     set +f

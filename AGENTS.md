@@ -94,7 +94,9 @@ binary's behavior, defaults, quirks, or bugs for parity.
   before committing.
 - Build and test every affected Linux target in proportion to the change: the
   native client with `meson compile`, and the relevant `client-linux32`,
-  `client-linux64`, `server`, or 32-bit cross target.
+  `client-linux64`, `server`, or 32-bit cross target. The architecture-specific
+  client names require a matching build directory; the other name fails with a
+  configuration message.
 - `client-run` is the user-facing normal-game launcher and intentionally uses
   the persistent system profile. Agents must never invoke it or create, edit,
   move, seed, restore, replace, or delete files in the profile it uses unless

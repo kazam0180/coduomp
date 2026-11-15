@@ -83,6 +83,10 @@ The cross file limits pkg-config to 32-bit and architecture-independent
 directories. Setup fails early if a 32-bit development package is missing
 instead of linking a 64-bit library into the client.
 
+The build directory's architecture selects the `client-linux32` or
+`client-linux64` alias. The other name reports that a differently configured
+build directory is required.
+
 Create complete archives with all three architecture-matched multiplayer
 modules under `uo/` with:
 
@@ -96,6 +100,35 @@ contain the reconstructed executable and modules, but no retail game data or
 Linux system libraries. Package staging strips debug and local-symbol data
 and checks for build debris and symlinks. It does not require a hostname utility
 or scan embedded strings for the builder's identity or paths.
+
+### Installing
+
+`meson install` writes `CoDUOMP` and `coduo_lnxded_recovered` to
+`${prefix}/bin`. It writes the cgame, UI, client game, and server game modules
+to `${prefix}/bin/uo/`:
+
+```sh
+meson install -C .workbench/build/client
+```
+
+The installed client resolves its modules relative to `fs_basepath`. Set
+`fs_basepath` to the installed `bin` directory. The default Meson prefix is
+`/usr/local`:
+
+```sh
+/usr/local/bin/CoDUOMP \
+  +set fs_basepath /usr/local/bin \
+  +set fs_cdpath "/absolute/path/to/Call of Duty UO" \
+  +set fs_homepath "/absolute/path/to/writable/profile"
+```
+
+For a staged installation, pass `--destdir` and place `fs_basepath` below the
+staged tree:
+
+```sh
+meson install -C .workbench/build/client --destdir /tmp/coduomp-install
+# fs_basepath is /tmp/coduomp-install/usr/local/bin
+```
 
 Build options are set when the build directory is created:
 
@@ -127,12 +160,38 @@ with the same `CLIENT_DATA_PATH` and optional `CLIENT_ARGS`. That target forces
 profile. `CLIENT_TEST_WORK_DIR` and `CLIENT_TEST_HOME_PATH` select isolated
 directories. Agents must never invoke `client-run` for testing.
 
+`CLIENT_ARGS` is split on whitespace, and shell glob patterns are passed
+literally rather than expanded against the working directory.
+
 For compiler-gated OpenGL GPU timing, renderer-phase attribution, and batch
 census captures, see [Renderer GPU profiling](client-renderer-gpu-profiling.md).
 
 See [CD-key location on Linux](../CDKEY.md) for the native `codkey`
 filename, default locations, custom `fs_homepath` behavior, and safe migration
 guidance, including the optional `UO_CODKEY` environment override.
+
+### Development checks
+
+These Meson run targets preserve the development gates that the previous Make
+build exposed. They build extra artifacts but do not change the package
+archives or the normal build outputs.
+
+- `meson compile -C BUILD_DIR policy-check` validates source-policy invariants
+  against the tree.
+- `meson compile -C BUILD_DIR check-linux-host` fails unless the host is Linux.
+- `meson compile -C BUILD_DIR ui-syntax-check` runs Clang's `-fsyntax-only`
+  over the UI sources with `-Werror=shorten-64-to-32`,
+  `-Werror=pointer-to-int-cast`, `-Werror=int-to-pointer-cast`, and
+  `-Werror=void-pointer-to-int-cast`. This target needs `clang` on `PATH`.
+- `meson compile -C BUILD_DIR shared-check` and `shared-check-link` link the
+  game module with all undefined symbols resolved. With both client and server
+  enabled they check both game-module variants.
+- `meson compile -C BUILD_DIR shared-i386` builds the 32-bit game modules. It
+  requires a build directory configured with
+  `--cross-file cross/linux-i386.ini`.
+- `meson compile -C BUILD_DIR native64-check` builds a non-PIC static archive
+  from the native game sources. `native64-shared` builds the native shared game
+  modules. Both require a 64-bit build directory.
 
 Native clients use the built-in Miniaudio backend by default. OpenAL remains a
 deprecated backup backend on Linux; Linux uses libsndfile for its

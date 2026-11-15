@@ -21,6 +21,7 @@ host_cpu = host_machine.cpu_family()
 is_i386 = host_cpu == 'x86'
 is_x86 = is_i386 or host_cpu == 'x86_64'
 module_arch = is_i386 ? 'x86' : 'x86_64'
+game_module_arch = is_i386 ? 'i386' : 'x86_64'
 
 # The recovery path imports the stock i386 C++ runtime symbols `_Znaj`
 # (operator new[](unsigned int)) and `_ZdlPv`.  A 64-bit libstdc++ exports
@@ -80,8 +81,8 @@ softfloat_include = include_directories('vendor/softfloat/source/include')
 # Source manifests live in meson/sources/*.txt.  They are one path per line so
 # they remain reviewable without turning meson.build into a thousand-line
 # include list.  client_c.txt is the canonical client list; client_hot_c.txt
-# and client_rest_c.txt partition it, and tools/check-client-manifests.py
-# verifies that partition.
+# and client_rest_c.txt partition it.  tools/check-client-manifests.py verifies
+# that partition and that every source file under src/ belongs to a manifest.
 client_cxx = files(fs.read('meson/sources/client_cxx.txt').strip().split('\n'))
 client_hot_c = files(fs.read('meson/sources/client_hot_c.txt').strip().split('\n'))
 client_rest_c = files(fs.read('meson/sources/client_rest_c.txt').strip().split('\n'))
@@ -108,11 +109,16 @@ c_type_error_args = [
 strict_warning_args = ['-Wall', '-Wextra', '-Werror']
 strict_c_warning_args = strict_warning_args + c_type_error_args
 
+# The native SDL2 pkg-config file defines _GNU_SOURCE, but the i386 one does
+# not.  The Make build passed SDL2's flags to both client architectures and
+# received the define, so keep it explicit instead of depending on which
+# pkg-config file the build directory resolves.
+client_gnu_source_args = ['-D_GNU_SOURCE=1']
+
 client_c_args = [
   '-std=c11',
   '-g',
   '-O0',
-  '-D_GNU_SOURCE=1',
   '-DEMULATE_X87=0',
   '-DWINDOWS_BEHAVIOR',
   '-DAUDIO_BACKEND_MINIAUDIO',
@@ -120,7 +126,7 @@ client_c_args = [
   '-fwrapv',
   '-ffp-contract=off',
   '-fno-common',
-] + strict_c_warning_args + [
+] + client_gnu_source_args + strict_c_warning_args + [
   '-iquote', root + '/src/client/engine/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -135,7 +141,6 @@ client_cxx_args = [
   '-std=c++17',
   '-g',
   '-O0',
-  '-D_GNU_SOURCE=1',
   '-DEMULATE_X87=0',
   '-DWINDOWS_BEHAVIOR',
   '-DAUDIO_BACKEND_MINIAUDIO',
@@ -143,7 +148,7 @@ client_cxx_args = [
   '-fwrapv',
   '-ffp-contract=off',
   '-fno-common',
-] + strict_warning_args + [
+] + client_gnu_source_args + strict_warning_args + [
   '-iquote', root + '/src/client/engine/bindings',
   '-iquote', root + '/src/qcommon/bindings/default',
 ]
@@ -253,13 +258,13 @@ game_common_args = [
   '-fno-short-enums',
   '-fwrapv',
   '-fno-common',
-  '-fPIC',
 ] + strict_c_warning_args + [
   '-pedantic',
   '-iquote', root + '/src/qcommon/bindings/default',
 ] + x87_allow_args
 
 game_client_args = game_common_args + [
+  '-fPIC',
   '-DWINDOWS_BEHAVIOR',
   '-DEMULATE_X87=0',
   '-DGAME_REQUIRE_X87_LONG_DOUBLE=0',
@@ -404,12 +409,43 @@ if get_option('client')
     client_targets += game_client
   endif
   alias_target('client', client_targets)
-  alias_target(is_i386 ? 'client-linux32' : 'client-linux64', client_targets)
+  if is_i386
+    alias_target('client-linux32', client_targets)
+    run_target('client-linux64',
+      command: [find_program('bash'), '-c',
+        'echo "error: client-linux64 requires a 64-bit build directory configured without the i386 cross file" >&2; exit 1'])
+  else
+    alias_target('client-linux64', client_targets)
+    run_target('client-linux32',
+      command: [find_program('bash'), '-c',
+        'echo "error: client-linux32 requires a 32-bit build directory configured with --cross-file cross/linux-i386.ini" >&2; exit 1'])
+  endif
   alias_target('client-engine', [coduomp_client])
   alias_target('client-cgame', [cgame])
   alias_target('client-ui', [ui])
   if get_option('game')
     alias_target('client-game', [game_client])
+  endif
+
+  # The previous UI syntax-check target used clang because
+  # -Wshorten-64-to-32 is a clang-only warning.  Keep the width checks on the
+  # UI sources even when the normal build uses GCC.
+  clang = find_program('clang', required: false)
+  if clang.found()
+    run_target('ui-syntax-check',
+      command: [clang, '-fsyntax-only', '-I', root + '/src'] + ui_c_args + [
+        # Clang 23 warns about three retained endian dispatch pointers that the
+        # old clang did not flag.  The check is for width bugs, not dead code.
+        '-Wno-unused-but-set-global',
+        '-Werror=shorten-64-to-32',
+        '-Werror=pointer-to-int-cast',
+        '-Werror=int-to-pointer-cast',
+        '-Werror=void-pointer-to-int-cast',
+      ] + ui_c)
+  else
+    run_target('ui-syntax-check',
+      command: [find_program('bash'), '-c',
+        'echo "error: ui-syntax-check requires clang with -Wshorten-64-to-32 support." >&2; exit 1'])
   endif
 
   run_target('client-run',
@@ -449,5 +485,128 @@ if get_option('server')
   if get_option('game')
     alias_target('server-game', [game_server])
     alias_target(is_i386 ? 'server-game32' : 'server-game64', [game_server])
+  endif
+endif
+
+run_target('check-linux-host',
+  command: [find_program('bash'), '-c',
+    'if [ "$(uname -s)" != Linux ]; then echo "error: Linux targets must be built on Linux" >&2; exit 2; fi'])
+
+if get_option('game')
+  game_check_link = []
+  if emulate_x87 and software_x87_backend == 'softfloat'
+    game_check_link = [softfloat_lib]
+  endif
+
+  game_strict_check_targets = []
+  if get_option('client')
+    game_strict_check_client = shared_library(
+      'game_mp_uo_strict_client_' + game_module_arch, game_c,
+      c_args: game_client_args,
+      include_directories: [top_include, softfloat_include],
+      dependencies: [m_dep],
+      link_with: game_check_link,
+      name_prefix: '',
+      name_suffix: 'so',
+      override_options: ['b_lundef=true'],
+      build_by_default: false)
+    game_strict_check_targets += [game_strict_check_client]
+  endif
+  if get_option('server')
+    game_strict_check_server = shared_library(
+      'game_mp_uo_strict_server_' + game_module_arch, game_c,
+      c_args: game_server_args + ['-fPIC'],
+      include_directories: [top_include, softfloat_include],
+      dependencies: [m_dep],
+      link_with: game_check_link,
+      name_prefix: '',
+      name_suffix: 'so',
+      override_options: ['b_lundef=true'],
+      build_by_default: false)
+    game_strict_check_targets += [game_strict_check_server]
+  endif
+
+  if game_strict_check_targets.length() > 0
+    run_target('shared-check-link',
+      command: [find_program('bash'), '-c',
+        'echo "shared game module strict link passed"'],
+      depends: game_strict_check_targets)
+    run_target('shared-check',
+      command: [find_program('bash'), '-c',
+        'echo "shared game module strict link passed"'],
+      depends: game_strict_check_targets)
+  else
+    run_target('shared-check-link',
+      command: [find_program('bash'), '-c',
+        'echo "error: shared-check requires a game module target" >&2; exit 1'])
+    run_target('shared-check',
+      command: [find_program('bash'), '-c',
+        'echo "error: shared-check requires a game module target" >&2; exit 1'])
+  endif
+
+  if is_i386
+    shared_i386_targets = []
+    if get_option('client')
+      shared_i386_targets += [game_client]
+    endif
+    if get_option('server')
+      shared_i386_targets += [game_server]
+    endif
+    if shared_i386_targets.length() > 0
+      run_target('shared-i386',
+        command: [find_program('bash'), '-c',
+          'echo "32-bit game modules built"'],
+        depends: shared_i386_targets)
+    else
+      run_target('shared-i386',
+        command: [find_program('bash'), '-c',
+          'echo "error: shared-i386 requires a game module target" >&2; exit 1'])
+    endif
+  else
+    run_target('shared-i386',
+      command: [find_program('bash'), '-c',
+        'echo "error: shared-i386 requires a 32-bit build directory configured with --cross-file cross/linux-i386.ini" >&2; exit 1'])
+  endif
+
+  if not is_i386
+    game_native_check = static_library(
+      'game_mp_uo_recovered_native_' + game_module_arch, game_c,
+      c_args: game_server_args,
+      include_directories: [top_include, softfloat_include],
+      dependencies: [m_dep],
+      pic: false,
+      build_by_default: false)
+    run_target('native64-check',
+      command: [find_program('bash'), '-c',
+        'echo "native 64-bit game archive built"'],
+      depends: [game_native_check])
+  else
+    run_target('native64-check',
+      command: [find_program('bash'), '-c',
+        'echo "error: native64-check requires a 64-bit build directory" >&2; exit 1'])
+  endif
+
+  if not is_i386
+    native64_shared_targets = []
+    if get_option('client')
+      native64_shared_targets += [game_client]
+    endif
+    if get_option('server')
+      native64_shared_targets += [game_server]
+    endif
+    if native64_shared_targets.length() > 0
+      run_target('native64-shared',
+        command: [find_program('bash'), '-c',
+          'echo "native 64-bit game modules built"'],
+        depends: native64_shared_targets)
+    else
+      run_target('native64-shared',
+        command: [find_program('bash'), '-c',
+          'echo "error: native64-shared requires a game module target" >&2; exit 1'])
+    endif
+  else
+    run_target('native64-shared',
+      command: [find_program('bash'), '-c',
+        'echo "error: native64-shared requires a 64-bit build directory" >&2; exit 1'])
   endif
 endif

@@ -42,6 +42,19 @@ meson compile -C .workbench/build/server server
 Pass `-Dclient=false` at setup time to omit the client executable, cgame, UI,
 and listen-server game module.
 
+`meson install` writes `coduo_lnxded_recovered` to `${prefix}/bin` and the server
+game module to `${prefix}/bin/uo/game.mp.uo.<arch>.so`:
+
+```sh
+meson install -C .workbench/build/server
+```
+
+Pass `--destdir DIR` to stage an installation without writing to the system
+prefix.
+
+The game-module development checks preserved from the previous build are listed
+in [Development checks](client-building.md#development-checks).
+
 ## CD-key Authorization
 
 On `master`, dedicated and listen servers skip external CD-key authorization

@@ -144,6 +144,35 @@ reconstructed executable and modules, but no retail game data or Linux system
 libraries. Package staging strips debug and local-symbol data and checks for
 build debris and symlinks.
 
+### Installing
+
+`meson install` copies `CoDUOMP`, `coduo_lnxded_recovered`, and the
+architecture-matched modules into the configured prefix. The executable and
+server are installed in `${prefix}/bin`; the modules are installed in
+`${prefix}/bin/uo/`:
+
+```sh
+meson install -C .workbench/build/meson
+```
+
+An installed client resolves modules relative to `fs_basepath`, so point it at
+the installed `bin` directory. The default Meson prefix is `/usr/local`:
+
+```sh
+"$PREFIX/bin/CoDUOMP" \
+  +set fs_basepath "$PREFIX/bin" \
+  +set fs_cdpath "/absolute/path/to/Call of Duty UO" \
+  +set fs_homepath "/absolute/path/to/writable/profile"
+```
+
+To inspect an installation without writing to the system prefix, stage it with
+`--destdir` and set `fs_basepath` below the staged tree:
+
+```sh
+meson install -C .workbench/build/meson --destdir /tmp/coduomp-install
+# fs_basepath is /tmp/coduomp-install${prefix}/bin
+```
+
 ### Selecting Linux compilers
 
 Meson reads the compiler from the environment when a build directory is
@@ -193,6 +222,9 @@ meson compile -C .workbench/build/meson client-test-run
 root. `CLIENT_TEST_WORK_DIR` and `CLIENT_TEST_HOME_PATH` override the isolated
 directories. Agents must never use `client-run` for testing.
 
+`CLIENT_ARGS` is split on whitespace. Shell glob patterns are passed literally
+rather than expanded against the working directory.
+
 To launch an existing native build without using a Meson run target, run the
 following from the repository root:
 
@@ -217,6 +249,10 @@ Validate source-policy invariants before committing or releasing:
 ```sh
 meson compile -C .workbench/build/meson policy-check
 ```
+
+The [client build notes](docs/client-building.md#development-checks) list the
+remaining development checks, including `ui-syntax-check`, the shared and
+native game-module link checks, and `check-linux-host`.
 
 On the `master` branch, see [client gamma control](docs/client-gamma.md) for
 the selectable output-gamma policies and provider order.
