@@ -4,11 +4,7 @@
 #include "compat/coduo_compiler.h"
 #include "gl_sdk.h"
 
-#if defined(_WIN32)
-#define RENDERER_GL_API_CALL APIENTRY
-#else
 #define RENDERER_GL_API_CALL
-#endif
 
 /* The SDK owns parameter types, return types and calling conventions. Taking
  * a function's type does not link it: QGL still resolves every slot at runtime.
@@ -18,12 +14,7 @@ typedef CODUO_FUNCTION_POINTER_TYPE(glAlphaFunc) renderer_gl_alpha_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glBegin) renderer_gl_begin_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glBindTexture) renderer_gl_bind_texture_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glBindProgramARB) renderer_gl_bind_program_arb_func_t;
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_bind_fragment_shader_ati_func_t)(
-    uint32_t shader);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glBindFragmentShaderATI) renderer_gl_bind_fragment_shader_ati_func_t;
-#endif
 typedef CODUO_FUNCTION_POINTER_TYPE(glBindBufferARB) renderer_gl_bind_buffer_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glBufferDataARB) renderer_gl_buffer_data_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glMapBufferARB) renderer_gl_map_buffer_arb_func_t;
@@ -58,39 +49,14 @@ typedef CODUO_FUNCTION_POINTER_TYPE(glTexParameteri) renderer_gl_tex_parameteri_
 typedef CODUO_FUNCTION_POINTER_TYPE(glNormalPointer) renderer_gl_normal_pointer_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glVertexPointer) renderer_gl_vertex_pointer_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glViewport) renderer_gl_viewport_func_t;
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_set_fence_nv_func_t)(
-    uint32_t fence, uint32_t condition);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glSetFenceNV) renderer_gl_set_fence_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_finish_fence_nv_func_t)(
-    uint32_t fence);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glFinishFenceNV) renderer_gl_finish_fence_nv_func_t;
-#endif
 typedef CODUO_FUNCTION_POINTER_TYPE(glActiveTextureARB) renderer_gl_active_texture_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glMultiTexCoord2fARB) renderer_gl_multi_tex_coord2f_arb_func_t;
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_lock_arrays_ext_func_t)(
-    int32_t first, int32_t count);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glLockArraysEXT) renderer_gl_lock_arrays_ext_func_t;
-#endif
 typedef CODUO_FUNCTION_POINTER_TYPE(glEnd) renderer_gl_void_func_t;
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_pn_trianglesi_ati_func_t)(
-    uint32_t parameter, int32_t value);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glPNTrianglesiATI) renderer_gl_pn_trianglesi_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_pn_trianglesf_ati_func_t)(
-    uint32_t parameter, float value);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glPNTrianglesfATI) renderer_gl_pn_trianglesf_ati_func_t;
-#endif
 typedef CODUO_FUNCTION_POINTER_TYPE(glCompressedTexImage3DARB) renderer_gl_compressed_tex_image_3d_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glCompressedTexImage2DARB) renderer_gl_compressed_tex_image_2d_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glCompressedTexImage1DARB) renderer_gl_compressed_tex_image_1d_func_t;
@@ -105,348 +71,57 @@ typedef CODUO_FUNCTION_POINTER_TYPE(glBufferSubDataARB) renderer_gl_buffer_sub_d
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetBufferSubDataARB) renderer_gl_get_buffer_sub_data_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetBufferParameterivARB) renderer_gl_get_buffer_parameteriv_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetBufferPointervARB) renderer_gl_get_buffer_pointerv_arb_func_t;
-#if defined(__APPLE__)
-typedef uint32_t (RENDERER_GL_API_CALL
-                  *renderer_gl_new_object_buffer_ati_func_t)(
-    int32_t size, const void *data, uint32_t usage);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glNewObjectBufferATI) renderer_gl_new_object_buffer_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef uint8_t (RENDERER_GL_API_CALL
-                 *renderer_gl_is_object_buffer_ati_func_t)(uint32_t buffer);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glIsObjectBufferATI) renderer_gl_is_object_buffer_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_update_object_buffer_ati_func_t)(
-    uint32_t buffer, uint32_t offset, int32_t size, const void *data,
-    uint32_t preserveMode);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glUpdateObjectBufferATI) renderer_gl_update_object_buffer_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_object_bufferfv_ati_func_t)(
-    uint32_t buffer, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetObjectBufferfvATI) renderer_gl_get_object_bufferfv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_object_bufferiv_ati_func_t)(
-    uint32_t buffer, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetObjectBufferivATI) renderer_gl_get_object_bufferiv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_free_object_buffer_ati_func_t)(
-    uint32_t buffer);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glFreeObjectBufferATI) renderer_gl_free_object_buffer_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_array_object_ati_func_t)(
-    uint32_t array, int32_t size, uint32_t type, int32_t stride,
-    uint32_t buffer, uint32_t offset);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glArrayObjectATI) renderer_gl_array_object_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_array_objectfv_ati_func_t)(
-    uint32_t array, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetArrayObjectfvATI) renderer_gl_get_array_objectfv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_array_objectiv_ati_func_t)(
-    uint32_t array, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetArrayObjectivATI) renderer_gl_get_array_objectiv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_variant_array_object_ati_func_t)(
-    uint32_t id, uint32_t type, int32_t stride, uint32_t buffer,
-    uint32_t offset);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glVariantArrayObjectATI) renderer_gl_variant_array_object_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_variant_array_objectfv_ati_func_t)(
-    uint32_t id, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetVariantArrayObjectfvATI) renderer_gl_get_variant_array_objectfv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_variant_array_objectiv_ati_func_t)(
-    uint32_t id, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetVariantArrayObjectivATI) renderer_gl_get_variant_array_objectiv_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_element_pointer_ati_func_t)(
-    uint32_t type, const void *pointer);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glElementPointerATI) renderer_gl_element_pointer_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_draw_element_array_ati_func_t)(
-    uint32_t mode, int32_t count);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glDrawElementArrayATI) renderer_gl_draw_element_array_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_draw_range_element_array_ati_func_t)(
-    uint32_t mode, uint32_t start, uint32_t end, int32_t count);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glDrawRangeElementArrayATI) renderer_gl_draw_range_element_array_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_vertex_array_range_nv_func_t)(
-    int32_t length, const void *pointer);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glVertexArrayRangeNV) renderer_gl_vertex_array_range_nv_func_t;
-#endif
 
 /* These two GL dispatch slots resolve WGL_NV_vertex_array_range exports. */
-#if defined(_WIN32)
-typedef PFNWGLALLOCATEMEMORYNVPROC renderer_gl_allocate_memory_nv_func_t;
-#else
 typedef void *(RENDERER_GL_API_CALL
                *renderer_gl_allocate_memory_nv_func_t)(
     int32_t size, float readFrequency, float writeFrequency, float priority);
-#endif
-#if defined(_WIN32)
-typedef PFNWGLFREEMEMORYNVPROC renderer_gl_free_memory_nv_func_t;
-#else
 typedef void (RENDERER_GL_API_CALL *renderer_gl_free_memory_nv_func_t)(
     void *memory);
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_delete_fences_nv_func_t)(
-    int32_t count, const uint32_t *fences);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glDeleteFencesNV) renderer_gl_delete_fences_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_gen_fences_nv_func_t)(
-    int32_t count, uint32_t *fences);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGenFencesNV) renderer_gl_gen_fences_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef uint8_t (RENDERER_GL_API_CALL *renderer_gl_fence_test_nv_func_t)(
-    uint32_t fence);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glIsFenceNV) renderer_gl_fence_test_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_get_fenceiv_nv_func_t)(
-    uint32_t fence, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetFenceivNV) renderer_gl_get_fenceiv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_combiner_parameterfv_nv_func_t)(
-    uint32_t parameter, const float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerParameterfvNV) renderer_gl_combiner_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_combiner_parameterf_nv_func_t)(
-    uint32_t parameter, float value);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerParameterfNV) renderer_gl_combiner_parameterf_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_combiner_parameteriv_nv_func_t)(
-    uint32_t parameter, const int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerParameterivNV) renderer_gl_combiner_parameteriv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_combiner_parameteri_nv_func_t)(
-    uint32_t parameter, int32_t value);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerParameteriNV) renderer_gl_combiner_parameteri_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_combiner_input_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t variable, uint32_t input,
-    uint32_t mapping, uint32_t componentUsage);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerInputNV) renderer_gl_combiner_input_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL *renderer_gl_combiner_output_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t abOutput, uint32_t cdOutput,
-    uint32_t sumOutput, uint32_t scale, uint32_t bias,
-    uint8_t abDotProduct, uint8_t cdDotProduct, uint8_t muxSum);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerOutputNV) renderer_gl_combiner_output_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_final_combiner_input_nv_func_t)(
-    uint32_t variable, uint32_t input, uint32_t mapping,
-    uint32_t componentUsage);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glFinalCombinerInputNV) renderer_gl_final_combiner_input_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_combiner_input_parameterfv_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t variable, uint32_t parameter,
-    float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetCombinerInputParameterfvNV) renderer_gl_get_combiner_input_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_combiner_input_parameteriv_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t variable, uint32_t parameter,
-    int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetCombinerInputParameterivNV) renderer_gl_get_combiner_input_parameteriv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_combiner_output_parameterfv_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetCombinerOutputParameterfvNV) renderer_gl_get_combiner_output_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_combiner_output_parameteriv_nv_func_t)(
-    uint32_t stage, uint32_t portion, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetCombinerOutputParameterivNV) renderer_gl_get_combiner_output_parameteriv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_final_combiner_input_parameterfv_nv_func_t)(
-    uint32_t variable, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetFinalCombinerInputParameterfvNV) renderer_gl_get_final_combiner_input_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_final_combiner_input_parameteriv_nv_func_t)(
-    uint32_t variable, uint32_t parameter, int32_t *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetFinalCombinerInputParameterivNV) renderer_gl_get_final_combiner_input_parameteriv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_combiner_stage_parameterfv_nv_func_t)(
-    uint32_t stage, uint32_t parameter, const float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glCombinerStageParameterfvNV) renderer_gl_combiner_stage_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_get_combiner_stage_parameterfv_nv_func_t)(
-    uint32_t stage, uint32_t parameter, float *values);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGetCombinerStageParameterfvNV) renderer_gl_get_combiner_stage_parameterfv_nv_func_t;
-#endif
-#if defined(__APPLE__)
-typedef uint32_t (RENDERER_GL_API_CALL
-                  *renderer_gl_gen_fragment_shaders_ati_func_t)(
-    uint32_t range);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glGenFragmentShadersATI) renderer_gl_gen_fragment_shaders_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_fragment_shader_texcoord_ati_func_t)(
-    uint32_t destination, uint32_t coordinate, uint32_t swizzle);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glPassTexCoordATI) renderer_gl_fragment_shader_texcoord_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_color_fragment_op1_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationMask,
-    uint32_t destinationModifier, uint32_t argument1,
-    uint32_t argument1Replication, uint32_t argument1Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glColorFragmentOp1ATI) renderer_gl_color_fragment_op1_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_color_fragment_op2_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationMask,
-    uint32_t destinationModifier, uint32_t argument1,
-    uint32_t argument1Replication, uint32_t argument1Modifier,
-    uint32_t argument2, uint32_t argument2Replication,
-    uint32_t argument2Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glColorFragmentOp2ATI) renderer_gl_color_fragment_op2_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_color_fragment_op3_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationMask,
-    uint32_t destinationModifier, uint32_t argument1,
-    uint32_t argument1Replication, uint32_t argument1Modifier,
-    uint32_t argument2, uint32_t argument2Replication,
-    uint32_t argument2Modifier, uint32_t argument3,
-    uint32_t argument3Replication, uint32_t argument3Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glColorFragmentOp3ATI) renderer_gl_color_fragment_op3_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_alpha_fragment_op1_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationModifier,
-    uint32_t argument1, uint32_t argument1Replication,
-    uint32_t argument1Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glAlphaFragmentOp1ATI) renderer_gl_alpha_fragment_op1_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_alpha_fragment_op2_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationModifier,
-    uint32_t argument1, uint32_t argument1Replication,
-    uint32_t argument1Modifier, uint32_t argument2,
-    uint32_t argument2Replication, uint32_t argument2Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glAlphaFragmentOp2ATI) renderer_gl_alpha_fragment_op2_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_alpha_fragment_op3_ati_func_t)(
-    uint32_t operation, uint32_t destination, uint32_t destinationModifier,
-    uint32_t argument1, uint32_t argument1Replication,
-    uint32_t argument1Modifier, uint32_t argument2,
-    uint32_t argument2Replication, uint32_t argument2Modifier,
-    uint32_t argument3, uint32_t argument3Replication,
-    uint32_t argument3Modifier);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glAlphaFragmentOp3ATI) renderer_gl_alpha_fragment_op3_ati_func_t;
-#endif
-#if defined(__APPLE__)
-typedef void (RENDERER_GL_API_CALL
-              *renderer_gl_set_fragment_shader_constant_ati_func_t)(
-    uint32_t destination, const float *value);
-#else
 typedef CODUO_FUNCTION_POINTER_TYPE(glSetFragmentShaderConstantATI) renderer_gl_set_fragment_shader_constant_ati_func_t;
-#endif
 typedef CODUO_FUNCTION_POINTER_TYPE(glVertexAttrib1sARB) renderer_gl_vertex_attrib1s_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glVertexAttrib1fARB) renderer_gl_vertex_attrib1f_arb_func_t;
 typedef CODUO_FUNCTION_POINTER_TYPE(glVertexAttrib1dARB) renderer_gl_vertex_attrib1d_arb_func_t;

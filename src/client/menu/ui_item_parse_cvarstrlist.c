@@ -13,7 +13,7 @@
 
 void Com_Printf(const char *format, ...);
 
-#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
+#if defined(__linux__)
 /* NOT_FROM_ORIGINAL_SOURCE: retail menu data hard-codes the Windows Miles
  * provider list. Replace it with the complete backends this client can use. */
 static void coduomp_audio_ui_append_backend(multiDef_t *multi, const char *name, const char *value)
@@ -35,10 +35,7 @@ static void coduomp_audio_ui_replace_backends(
         return;
     multi->count = 0;
     coduomp_audio_ui_append_backend(multi, AUDIO_BACKEND_MINIAUDIO_NAME, AUDIO_BACKEND_MINIAUDIO_NAME);
-#if defined(_WIN32) && UINTPTR_MAX == UINT32_MAX
-    if (DC->getCVarValue(AUDIO_BACKEND_MILES_AVAILABLE_CVAR) != 0.0f)
-        coduomp_audio_ui_append_backend(multi, AUDIO_BACKEND_MILES_NAME, AUDIO_BACKEND_MILES_PROVIDER_NAME);
-#elif defined(__APPLE__) || defined(__linux__)
+#if   defined(__linux__)
     coduomp_audio_ui_append_backend(multi, AUDIO_BACKEND_OPENAL_NAME, AUDIO_BACKEND_OPENAL_NAME);
 #endif
 }
@@ -65,7 +62,7 @@ qboolean ItemParse_cvarStrList(itemDef_t *item, int handle)
     while (trap_PC_ReadToken(handle, &token)) {
         /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
         if (token.string[0] == '}') {
-#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
+#if defined(__linux__)
             coduomp_audio_ui_replace_backends(item, multi);
 #endif
             return qtrue;

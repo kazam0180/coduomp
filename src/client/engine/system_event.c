@@ -6,12 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#include <mmsystem.h>
-#else
 #include "platform/sdl_platform.h"
-#endif
 
 enum {
     SYS_EVENT_QUEUE_MASK = SYS_EVENT_QUEUE_COUNT - 1
@@ -91,22 +86,7 @@ void Sys_ClearEventQueue(void)
  * the display awake. */
 void Sys_PumpEvents(void)
 {
-#if defined(_WIN32)
-    MSG message;
-
-    if (PeekMessageA(
-            &message, NULL, WM_POWERBROADCAST, WM_POWERBROADCAST,
-            PM_NOREMOVE) != FALSE &&
-        GetMessageA(
-            &message, NULL, WM_POWERBROADCAST, WM_POWERBROADCAST) > 0) {
-        TranslateMessage(&message);
-        DispatchMessageA(&message);
-    }
-
-    (void)SetThreadExecutionState(ES_DISPLAY_REQUIRED);
-#else
     CoduoSDL_PumpEvents();
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046bb80..0x0046bde6.
@@ -124,18 +104,6 @@ sysEvent_t Sys_GetEvent(void)
         return event;
     }
 
-#if defined(_WIN32)
-    MSG windowMessage;
-    while (PeekMessageA(
-               &windowMessage, NULL, 0, 0, PM_NOREMOVE) != FALSE) {
-        if (GetMessageA(&windowMessage, NULL, 0, 0) == FALSE)
-            Com_Quit_f();
-
-        sysMsgTime = (int32_t)windowMessage.time;
-        TranslateMessage(&windowMessage);
-        DispatchMessageA(&windowMessage);
-    }
-#else
     CoduoSDL_PumpEvents();
     if (eventHead > eventTail) {
         const sysEvent_t event =
@@ -143,7 +111,6 @@ sysEvent_t Sys_GetEvent(void)
         ++eventTail;
         return event;
     }
-#endif
 
     char *const consoleLine = Sys_ConsoleInput();
     if (consoleLine != NULL) {
@@ -192,12 +159,8 @@ sysEvent_t Sys_GetEvent(void)
     }
 
     sysEvent_t event = {0};
-#if defined(_WIN32)
-    event.time = (int32_t)timeGetTime();
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native monotonic-clock counterpart to the
      * original direct WinMM timeGetTime call. */
     event.time = (int32_t)Sys_Milliseconds();
-#endif
     return event;
 }

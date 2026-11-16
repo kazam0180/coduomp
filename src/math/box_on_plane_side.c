@@ -45,9 +45,7 @@ int32_t BoxOnPlaneSide(const vec3_t mins, const vec3_t maxs,
 
     if (plane->signbits >= BOX_PLANE_SIGNBITS_COUNT) {
         /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-#if defined(_MSC_VER)
-        __debugbreak();
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
         __asm__ volatile("int3");
 #else
         /* NOT_FROM_ORIGINAL_SOURCE: portable equivalent of the x86 INT3. */
@@ -55,10 +53,7 @@ int32_t BoxOnPlaneSide(const vec3_t mins, const vec3_t maxs,
 #endif
         Com_Error(ERR_DROP,
                   "\x15" "BoxOnPlaneSide: invalid signbits for plane");
-#if defined(_MSC_VER)
-        __debugbreak();
-        __assume(0);
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
         __asm__ volatile("int3");
         __builtin_unreachable();
 #else

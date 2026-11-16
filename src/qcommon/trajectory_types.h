@@ -35,9 +35,7 @@ typedef struct trajectory_s {
 #define TRAJECTORY_LAYOUT_ASSERT(name_, expression_) \
     typedef char name_[(expression_) ? 1 : -1]
 
-#if defined(_MSC_VER)
-#define TRAJECTORY_ALIGNOF(type_) __alignof(type_)
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define TRAJECTORY_ALIGNOF(type_) __alignof__(type_)
 #elif defined(__cplusplus)
 #define TRAJECTORY_ALIGNOF(type_) alignof(type_)

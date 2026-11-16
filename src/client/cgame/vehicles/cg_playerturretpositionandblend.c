@@ -93,9 +93,7 @@ enum { CG_ANIMDEBUG_FREEZE_TURRET = 5 };
 /* Shared cgame syscall ids used here: trap 0xa5 resolves the entity's DObj and
  * trap 0x9d calculates one runtime XAnim node's absolute rotation/move delta. */
 
-#if defined(_MSC_VER)
-#define CG_TURRET_COMPAT_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_TURRET_COMPAT_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_TURRET_COMPAT_ALWAYS_INLINE inline

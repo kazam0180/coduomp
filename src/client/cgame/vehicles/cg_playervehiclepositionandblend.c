@@ -79,9 +79,7 @@
 
 #include <string.h>
 
-#if defined(_MSC_VER)
-#define CG_VEHICLE_COMPAT_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_VEHICLE_COMPAT_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_VEHICLE_COMPAT_ALWAYS_INLINE inline

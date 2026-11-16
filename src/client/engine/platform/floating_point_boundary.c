@@ -5,12 +5,10 @@
 #include <float.h>
 #include <stdint.h>
 
-#if !defined(_WIN32) || UINTPTR_MAX == UINT64_MAX
 enum {
     CODUOMP_X87_PRECISION_MASK = 0x0300,
     CODUOMP_X87_DOUBLE_PRECISION = 0x0200
 };
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: the retail entry path pushes 1 at 0x0056fb55
  * before calling the CRT initializer at 0x0056eeee. Its pre-init pointer
@@ -23,9 +21,6 @@ enum {
  * mode at its startup boundary. */
 void coduomp_restore_retail_x87_precision(void)
 {
-#if defined(_WIN32) && UINTPTR_MAX == UINT32_MAX
-    (void)_controlfp(_PC_53, _MCW_PC);
-#else
     uint16_t controlWord;
 
     /* NOT_FROM_ORIGINAL_SOURCE: GNU-compatible x86 ports can emit x87
@@ -35,7 +30,6 @@ void coduomp_restore_retail_x87_precision(void)
     controlWord = (uint16_t)((controlWord & (uint16_t)~CODUOMP_X87_PRECISION_MASK) |
                              CODUOMP_X87_DOUBLE_PRECISION);
     __asm__ volatile ("fldcw %0" : : "m" (controlWord));
-#endif
 }
 
 #endif

@@ -38,9 +38,7 @@ typedef struct clientState_s {
 #define CLIENT_STATE_LAYOUT_ASSERT(name_, expression_) \
     typedef char name_[(expression_) ? 1 : -1]
 
-#if defined(_MSC_VER)
-#define CLIENT_STATE_ALIGNOF(type_) __alignof(type_)
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CLIENT_STATE_ALIGNOF(type_) __alignof__(type_)
 #elif defined(__cplusplus)
 #define CLIENT_STATE_ALIGNOF(type_) alignof(type_)

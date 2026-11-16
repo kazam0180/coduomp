@@ -72,9 +72,7 @@ enum {
     LOADBAR_UNUSED = 0  /* kept as named float constants at the call sites */
 };
 
-#if defined(_MSC_VER)
-#define CG_REGISTER_ASSETS_COMPAT_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_REGISTER_ASSETS_COMPAT_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_REGISTER_ASSETS_COMPAT_ALWAYS_INLINE inline

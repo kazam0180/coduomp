@@ -1,6 +1,5 @@
 #include "sdl_platform.h"
 
-#if !defined(_WIN32)
 
 #include "../client/console.h"
 #include "../system_console.h"
@@ -15,10 +14,6 @@
 #include <SDL_syswm.h>
 #endif
 
-#if defined(__APPLE__)
-#include <CoreGraphics/CoreGraphics.h>
-#include <IOKit/graphics/IOGraphicsTypes.h>
-#endif
 
 #include <stdint.h>
 #include <string.h>
@@ -34,54 +29,6 @@ enum {
     CODUO_SDL_CHAR_PASTE = 22
 };
 
-#if defined(__APPLE__)
-static uint32_t coduoSdlReportedMouseButtons;
-static uint32_t coduoSdlStaleMouseButtons;
-
-enum {
-    CODUO_SDL_SUPPORTED_MOUSE_BUTTON_MASK = SDL_BUTTON_LMASK |
-                                            SDL_BUTTON_RMASK |
-                                            SDL_BUTTON_MMASK |
-                                            SDL_BUTTON_X1MASK |
-                                            SDL_BUTTON_X2MASK
-};
-
-/* NOT_FROM_ORIGINAL_SOURCE: SDL's Cocoa global-state query reads the physical
- * NSEvent button mask rather than SDL's per-window event latch. Keep the
- * compatibility boundary limited to the five buttons exposed by the engine. */
-static uint32_t coduomp_sdl_current_mouse_buttons_compat(void)
-{
-    int cursorX;
-    int cursorY;
-
-    return SDL_GetGlobalMouseState(&cursorX, &cursorY) &
-           CODUO_SDL_SUPPORTED_MOUSE_BUTTON_MASK;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: SDL_GetMouseState exposes SDL's retained
- * per-input-source event latch. Comparing it with the physical state above
- * identifies exactly which releases were lost during window replacement. */
-static uint32_t coduomp_sdl_latched_mouse_buttons_compat(void)
-{
-    int cursorX;
-    int cursorY;
-
-    return SDL_GetMouseState(&cursorX, &cursorY) &
-           CODUO_SDL_SUPPORTED_MOUSE_BUTTON_MASK;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: establish an engine-facing baseline without
- * turning a focus/activation click into gameplay input, and remember only
- * SDL latches proven stale against the physical Cocoa button state. */
-static void coduomp_sdl_rebase_mouse_buttons_compat(void)
-{
-    coduoSdlReportedMouseButtons =
-        coduomp_sdl_current_mouse_buttons_compat();
-    coduoSdlStaleMouseButtons =
-        coduomp_sdl_latched_mouse_buttons_compat() &
-        ~coduoSdlReportedMouseButtons;
-}
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: SDL provides the native application, window,
  * OpenGL-context, and input boundary that Win32 supplied to the recovered
@@ -91,14 +38,6 @@ qboolean CoduoSDL_Init(void)
     if (coduoSdlInitialized != qfalse)
         return qtrue;
 
-#if defined(__APPLE__)
-    SDL_SetHint(SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK, "0");
-    /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): SDL's Cocoa backend
-     * uses a native fullscreen Space by default. Keep it on the ordinary
-     * desktop so switching applications can reveal their windows without
-     * minimizing the game window to the Dock. */
-    SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
-#endif
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "0");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS |
                  SDL_INIT_GAMECONTROLLER) != 0) {
@@ -181,24 +120,6 @@ qboolean CoduoSDL_CreateOpenGLWindow(int32_t width, int32_t height,
         allowHighDpi = qfalse;
     }
 
-#if defined(__APPLE__)
-    if (windowMode == CODUOMP_WINDOW_MODE_FULLSCREEN || windowMode == CODUOMP_WINDOW_MODE_BORDERLESS) {
-        SDL_Rect displayBounds;
-
-        /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): desktop fullscreen
-         * and borderless windows use screen coordinates, not the requested
-         * render pixels. The renderer draws into that window's backbuffer
-         * before copying it for presentation, so native-pixel modes need
-         * Retina when they exceed the selected display's logical bounds.
-         * Keep the smaller drawable when it already contains the complete
-         * render frame to avoid an unnecessary scaled backing surface.
-         * Windowed mode retains Retina and converts its requested drawable
-         * pixels to screen coordinates below. */
-        if (SDL_GetDisplayBounds(displayIndex, &displayBounds) == 0) {
-            allowHighDpi = width > displayBounds.w || height > displayBounds.h ? qtrue : qfalse;
-        }
-    }
-#endif
     if (allowHighDpi != qfalse)
         flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 
@@ -247,15 +168,6 @@ qboolean CoduoSDL_CreateOpenGLWindow(int32_t width, int32_t height,
         width = displayBounds.w;
         height = displayBounds.h;
         flags |= SDL_WINDOW_BORDERLESS;
-#if defined(__APPLE__)
-    } else if (windowMode == CODUOMP_WINDOW_MODE_WINDOWED) {
-        /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): SDL window sizes
-         * are screen coordinates on macOS, while the graphics menu expresses
-         * render pixels. Convert through the active backing scale so a
-         * requested 1920x1080 window has a 1920x1080 drawable. */
-        coduomp_sdl_window_size_for_drawable_compat(
-            displayIndex, &width, &height);
-#endif
     }
 
     coduoSdlWindow = SDL_CreateWindow(
@@ -295,9 +207,6 @@ qboolean CoduoSDL_CreateOpenGLWindow(int32_t width, int32_t height,
      * focus click as gameplay input, then reproduce AppActivate so stale
      * engine key state cannot survive the replacement. */
     SDL_RaiseWindow(coduoSdlWindow);
-#if defined(__APPLE__)
-    coduomp_sdl_rebase_mouse_buttons_compat();
-#endif
     AppActivate(qtrue, qfalse);
     return qtrue;
 }
@@ -362,116 +271,6 @@ void CoduoSDL_GetDesktopMode(int32_t displayIndex,
     *refreshRate = mode.refresh_rate;
 }
 
-#if defined(__APPLE__)
-enum {
-    CODUOMP_SDL_MAX_CORE_GRAPHICS_DISPLAYS = 32
-};
-
-/* NOT_FROM_ORIGINAL_SOURCE: SDL does not publish its Cocoa display ID. Match
- * the selected SDL desktop rectangle to the active Core Graphics rectangles
- * so native-mode and backing-pixel queries describe the same monitor that
- * owns the game window. */
-static CGDirectDisplayID coduomp_sdl_cg_display_for_index_compat(
-    int32_t displayIndex)
-{
-    CGDirectDisplayID displays[CODUOMP_SDL_MAX_CORE_GRAPHICS_DISPLAYS];
-    uint32_t displayCount = 0;
-    SDL_Rect sdlBounds;
-    CGDirectDisplayID selectedDisplay = CGMainDisplayID();
-    int64_t selectedDifference = INT64_MAX;
-
-    displayIndex = coduomp_sdl_normalize_display_index_compat(displayIndex);
-    if (SDL_GetDisplayBounds(displayIndex, &sdlBounds) != 0 ||
-        CGGetActiveDisplayList(
-            CODUOMP_SDL_MAX_CORE_GRAPHICS_DISPLAYS,
-            displays, &displayCount) != kCGErrorSuccess) {
-        return selectedDisplay;
-    }
-
-    for (uint32_t index = 0; index < displayCount; ++index) {
-        const CGRect bounds = CGDisplayBounds(displays[index]);
-        const int64_t cgX = (int64_t)bounds.origin.x;
-        const int64_t cgY = (int64_t)bounds.origin.y;
-        const int64_t cgWidth = (int64_t)bounds.size.width;
-        const int64_t cgHeight = (int64_t)bounds.size.height;
-        int64_t deltaX = cgX - sdlBounds.x;
-        int64_t deltaY = cgY - sdlBounds.y;
-        int64_t deltaWidth = cgWidth - sdlBounds.w;
-        int64_t deltaHeight = cgHeight - sdlBounds.h;
-
-        if (deltaX < 0)
-            deltaX = -deltaX;
-        if (deltaY < 0)
-            deltaY = -deltaY;
-        if (deltaWidth < 0)
-            deltaWidth = -deltaWidth;
-        if (deltaHeight < 0)
-            deltaHeight = -deltaHeight;
-
-        const int64_t difference =
-            deltaX + deltaY + deltaWidth + deltaHeight;
-        if (difference < selectedDifference) {
-            selectedDifference = difference;
-            selectedDisplay = displays[index];
-        }
-    }
-    return selectedDisplay;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: selects the physical panel mode identified by
- * CoreGraphics. Scaled modes can have larger backing surfaces than the panel,
- * so neither their logical dimensions nor pixel dimensions are native. */
-static qboolean coduomp_sdl_find_native_display_mode_compat(
-    CFArrayRef modes, int32_t *width, int32_t *height, int32_t *refreshRate)
-{
-    size_t selectedWidth = 0;
-    size_t selectedHeight = 0;
-    double selectedRefreshRate = 0.0;
-    qboolean selectedIsNative = qfalse;
-    const CFIndex modeCount = CFArrayGetCount(modes);
-
-    for (CFIndex index = 0; index < modeCount; ++index) {
-        CGDisplayModeRef mode =
-            (CGDisplayModeRef)CFArrayGetValueAtIndex(modes, index);
-        const size_t pixelWidth = CGDisplayModeGetPixelWidth(mode);
-        const size_t pixelHeight = CGDisplayModeGetPixelHeight(mode);
-        const double modeRefreshRate = CGDisplayModeGetRefreshRate(mode);
-        const qboolean modeIsNative =
-            (CGDisplayModeGetIOFlags(mode) & kDisplayModeNativeFlag) != 0
-                ? qtrue
-                : qfalse;
-        const qboolean modeIsUnscaled =
-            CGDisplayModeGetWidth(mode) == pixelWidth &&
-                    CGDisplayModeGetHeight(mode) == pixelHeight
-                ? qtrue
-                : qfalse;
-
-        if (!CGDisplayModeIsUsableForDesktopGUI(mode) ||
-            (modeIsNative == qfalse && modeIsUnscaled == qfalse) ||
-            (selectedIsNative != qfalse && modeIsNative == qfalse)) {
-            continue;
-        }
-
-        if ((modeIsNative != qfalse && selectedIsNative == qfalse) ||
-            pixelWidth * pixelHeight > selectedWidth * selectedHeight ||
-            (pixelWidth == selectedWidth && pixelHeight == selectedHeight &&
-             modeRefreshRate > selectedRefreshRate)) {
-            selectedWidth = pixelWidth;
-            selectedHeight = pixelHeight;
-            selectedRefreshRate = modeRefreshRate;
-            selectedIsNative = modeIsNative;
-        }
-    }
-
-    if (selectedWidth == 0 || selectedHeight == 0)
-        return qfalse;
-
-    *width = (int32_t)selectedWidth;
-    *height = (int32_t)selectedHeight;
-    *refreshRate = (int32_t)selectedRefreshRate;
-    return qtrue;
-}
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: reports the selected display's hardware-sized
  * pixel mode. Desktop scaling remains a separate logical-window concern. */
@@ -481,19 +280,6 @@ qboolean coduomp_sdl_get_native_display_mode_compat(int32_t displayIndex,
                                                      int32_t *refreshRate)
 {
     displayIndex = coduomp_sdl_normalize_display_index_compat(displayIndex);
-#if defined(__APPLE__)
-    const CGDirectDisplayID display =
-        coduomp_sdl_cg_display_for_index_compat(displayIndex);
-    CFArrayRef modes = CGDisplayCopyAllDisplayModes(display, NULL);
-    qboolean found;
-
-    if (modes == NULL)
-        return qfalse;
-    found = coduomp_sdl_find_native_display_mode_compat(
-        modes, width, height, refreshRate);
-    CFRelease(modes);
-    return found;
-#else
     int32_t selectedWidth = 0;
     int32_t selectedHeight = 0;
     int32_t selectedRefreshRate = 0;
@@ -526,7 +312,6 @@ qboolean coduomp_sdl_get_native_display_mode_compat(int32_t displayIndex,
     *height = selectedHeight;
     *refreshRate = selectedRefreshRate;
     return qtrue;
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: distinguishes the selected macOS desktop's
@@ -558,29 +343,6 @@ qboolean coduomp_sdl_get_display_info_compat(
     if (displayInfo->refreshRate <= 0)
         displayInfo->refreshRate = nativeRefreshRate;
 
-#if defined(__APPLE__)
-    const CGDirectDisplayID display =
-        coduomp_sdl_cg_display_for_index_compat(displayIndex);
-    CGDisplayModeRef currentMode = CGDisplayCopyDisplayMode(display);
-
-    displayInfo->builtin = CGDisplayIsBuiltin(display) != 0
-        ? qtrue : qfalse;
-    if (currentMode != NULL) {
-        displayInfo->logicalWidth =
-            (int32_t)CGDisplayModeGetWidth(currentMode);
-        displayInfo->logicalHeight =
-            (int32_t)CGDisplayModeGetHeight(currentMode);
-        displayInfo->backingWidth =
-            (int32_t)CGDisplayModeGetPixelWidth(currentMode);
-        displayInfo->backingHeight =
-            (int32_t)CGDisplayModeGetPixelHeight(currentMode);
-        const double currentRefreshRate =
-            CGDisplayModeGetRefreshRate(currentMode);
-        if (currentRefreshRate > 0.0)
-            displayInfo->refreshRate = (int32_t)currentRefreshRate;
-        CGDisplayModeRelease(currentMode);
-    }
-#endif
     return qtrue;
 }
 
@@ -591,35 +353,9 @@ void coduomp_sdl_window_size_for_drawable_compat(int32_t displayIndex,
                                                   int32_t *width,
                                                   int32_t *height)
 {
-#if defined(__APPLE__)
-    const CGDirectDisplayID display =
-        coduomp_sdl_cg_display_for_index_compat(displayIndex);
-    CGDisplayModeRef currentMode =
-        CGDisplayCopyDisplayMode(display);
-
-    if (currentMode == NULL)
-        return;
-
-    const size_t logicalWidth = CGDisplayModeGetWidth(currentMode);
-    const size_t logicalHeight = CGDisplayModeGetHeight(currentMode);
-    const size_t pixelWidth = CGDisplayModeGetPixelWidth(currentMode);
-    const size_t pixelHeight = CGDisplayModeGetPixelHeight(currentMode);
-
-    if (logicalWidth != 0 && logicalHeight != 0 &&
-        pixelWidth != 0 && pixelHeight != 0) {
-        *width = (int32_t)(((int64_t)*width * (int64_t)logicalWidth +
-                            (int64_t)pixelWidth / 2) /
-                           (int64_t)pixelWidth);
-        *height = (int32_t)(((int64_t)*height * (int64_t)logicalHeight +
-                             (int64_t)pixelHeight / 2) /
-                            (int64_t)pixelHeight);
-    }
-    CGDisplayModeRelease(currentMode);
-#else
     (void)displayIndex;
     (void)width;
     (void)height;
-#endif
 }
 
 /* NOT_FROM_ORIGINAL_SOURCE: reports whether the selected display exposes an
@@ -635,18 +371,6 @@ qboolean coduomp_sdl_display_mode_available_compat(int32_t displayIndex,
 
     displayIndex = coduomp_sdl_normalize_display_index_compat(displayIndex);
 
-#if defined(__APPLE__)
-    int32_t nativeWidth = 0;
-    int32_t nativeHeight = 0;
-    int32_t nativeRefreshRate = 0;
-
-    if (coduomp_sdl_get_native_display_mode_compat(
-            displayIndex, &nativeWidth, &nativeHeight,
-            &nativeRefreshRate) == qfalse ||
-        width > nativeWidth || height > nativeHeight) {
-        return qfalse;
-    }
-#endif
     const int modeCount = SDL_GetNumDisplayModes(displayIndex);
 
     for (int index = 0; index < modeCount; ++index) {
@@ -895,80 +619,6 @@ static int32_t CoduoSDL_MapMouseButton(uint8_t button)
     }
 }
 
-#if defined(__APPLE__)
-/* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): SDL 2.32 retains its
- * per-input-source mouse-button latch when a window is destroyed. If the old
- * window loses a release, SDL_PrivateSendMouseButton suppresses the first
- * press on the replacement window as a duplicate. Publish changes through a
- * separate engine-facing latch so physical-state reconciliation can restore
- * the missing transition without duplicating ordinary SDL button events. */
-static void coduomp_sdl_publish_mouse_button_compat(uint8_t button,
-                                                     qboolean down,
-                                                     int32_t time)
-{
-    const int32_t key = CoduoSDL_MapMouseButton(button);
-    const uint32_t buttonBit = SDL_BUTTON(button);
-    const qboolean wasDown =
-        (coduoSdlReportedMouseButtons & buttonBit) != 0 ? qtrue : qfalse;
-
-    if (key == 0 || wasDown == down)
-        return;
-
-    if (down != qfalse)
-        coduoSdlReportedMouseButtons |= buttonBit;
-    else
-        coduoSdlReportedMouseButtons &= ~buttonBit;
-
-    Sys_QueEvent(time, SE_KEY, key, down, 0, NULL);
-}
-
-/* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): an unmatched release for a
- * button whose SDL latch was proven stale means SDL suppressed that click's
- * press. Reconstruct both transitions so even a click completed during a
- * blocked restart frame reaches the original +button impulse logic. */
-static void coduomp_sdl_publish_mouse_event_compat(uint8_t button,
-                                                   qboolean down,
-                                                   int32_t time)
-{
-    const uint32_t buttonBit = SDL_BUTTON(button);
-
-    if (CoduoSDL_MapMouseButton(button) == 0)
-        return;
-
-    if (down == qfalse &&
-        (coduoSdlReportedMouseButtons & buttonBit) == 0 &&
-        (coduoSdlStaleMouseButtons & buttonBit) != 0) {
-        coduomp_sdl_publish_mouse_button_compat(button, qtrue, time);
-    }
-
-    coduoSdlStaleMouseButtons &= ~buttonBit;
-    coduomp_sdl_publish_mouse_button_compat(button, down, time);
-}
-
-/* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): retain ordinary
- * event-driven clicks while repairing a suppressed press that remains
- * physically held at the pump boundary. */
-static void coduomp_sdl_reconcile_mouse_buttons_compat(void)
-{
-    static const uint8_t buttons[] = {
-        SDL_BUTTON_LEFT,
-        SDL_BUTTON_RIGHT,
-        SDL_BUTTON_MIDDLE,
-        SDL_BUTTON_X1,
-        SDL_BUTTON_X2
-    };
-    const uint32_t physicalButtons =
-        coduomp_sdl_current_mouse_buttons_compat();
-
-    for (size_t index = 0; index < sizeof(buttons) / sizeof(buttons[0]); ++index) {
-        const uint8_t button = buttons[index];
-        const qboolean down =
-            (physicalButtons & SDL_BUTTON(button)) != 0 ? qtrue : qfalse;
-
-        coduomp_sdl_publish_mouse_button_compat(button, down, 0);
-    }
-}
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: translates SDL's portable native events into the
  * recovered engine's original key/character/mouse event queue. */
@@ -1008,16 +658,6 @@ void CoduoSDL_PumpEvents(void)
 
         switch (event.type) {
         case SDL_QUIT:
-#if defined(__APPLE__)
-            /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): Cocoa turns
-             * Command-Q into SDL_QUIT before the recovered input/binding path
-             * can decide what to do with it. Ignore only that modifier-held
-             * request so an accidental adjacent-key chord cannot terminate an
-             * active game. Window-close, clicked-menu, in-game, and console
-             * quit paths remain available. */
-            if ((SDL_GetModState() & KMOD_GUI) != 0)
-                break;
-#endif
             Com_Quit_f();
             break;
 
@@ -1026,9 +666,6 @@ void CoduoSDL_PumpEvents(void)
                 Com_Quit_f();
             } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                 coduomp_gamma_window_focus_changed(qtrue);
-#if defined(__APPLE__)
-                coduomp_sdl_rebase_mouse_buttons_compat();
-#endif
                 AppActivate(qtrue, qfalse);
             } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
                 coduomp_gamma_window_focus_changed(qfalse);
@@ -1101,16 +738,6 @@ void CoduoSDL_PumpEvents(void)
         case SDL_MOUSEBUTTONUP: {
             if (sysInputAppActive == qfalse)
                 break;
-#if defined(__APPLE__)
-            if (coduoSdlWindow == NULL ||
-                event.button.windowID != SDL_GetWindowID(coduoSdlWindow)) {
-                break;
-            }
-            coduomp_sdl_publish_mouse_event_compat(
-                event.button.button,
-                event.type == SDL_MOUSEBUTTONDOWN ? qtrue : qfalse,
-                sysMsgTime);
-#else
             const int32_t key =
                 CoduoSDL_MapMouseButton(event.button.button);
             if (key != 0) {
@@ -1119,7 +746,6 @@ void CoduoSDL_PumpEvents(void)
                     event.type == SDL_MOUSEBUTTONDOWN ? qtrue : qfalse,
                     0, NULL);
             }
-#endif
             break;
         }
 
@@ -1127,19 +753,6 @@ void CoduoSDL_PumpEvents(void)
             if (sysInputAppActive == qfalse)
                 break;
             int32_t wheelY = event.wheel.y;
-#if defined(__APPLE__)
-            /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): macOS turns a
-             * conventional vertical wheel into horizontal scrolling while
-             * Shift is held. The original engine has only MWHEELUP and
-             * MWHEELDOWN keys and no horizontal-wheel consumer, so fold any
-             * otherwise-unused horizontal-only event into that domain. SDL's
-             * Cocoa backend negates NSEvent deltaX, so negate it again to
-             * retain the physical vertical-wheel direction for the
-             * Shift-converted case. */
-            if (wheelY == 0 && event.wheel.x != 0) {
-                wheelY = -event.wheel.x;
-            }
-#endif
             const int32_t key =
                 wheelY > 0 ? K_MWHEELUP : K_MWHEELDOWN;
             if (wheelY != 0) {
@@ -1156,10 +769,5 @@ void CoduoSDL_PumpEvents(void)
         }
     }
 
-#if defined(__APPLE__)
-    if (sysInputAppActive != qfalse)
-        coduomp_sdl_reconcile_mouse_buttons_compat();
-#endif
 }
 
-#endif

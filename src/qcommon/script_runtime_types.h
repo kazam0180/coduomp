@@ -8,9 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define CODUO_SCRIPT_CDECL __cdecl
-#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+#if   defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
 #define CODUO_SCRIPT_CDECL __attribute__((cdecl))
 #else
 #define CODUO_SCRIPT_CDECL
@@ -230,8 +228,6 @@ typedef union sval_u {
 
 #if defined(__cplusplus)
 #define SCRIPT_RUNTIME_ALIGNOF(type_) alignof(type_)
-#elif defined(_MSC_VER)
-#define SCRIPT_RUNTIME_ALIGNOF(type_) __alignof(type_)
 #else
 #define SCRIPT_RUNTIME_ALIGNOF(type_) _Alignof(type_)
 #endif

@@ -5,20 +5,13 @@
 
 #include "qcommon/cgame_module_abi_types.h"
 
-#if defined(_MSC_VER)
-/* The cgame module exports dllEntry/vmMain through the ABI definition file
- * (build-mk/abi/cgame/uo_cgame_mp_x86.def), matching the MinGW link. */
-#define CGAME_EXPORT
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CGAME_EXPORT __attribute__((visibility("default")))
 #else
 #define CGAME_EXPORT
 #endif
 
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define CGAME_ABI_CDECL __cdecl
-#define CGAME_ABI_STDCALL __stdcall
-#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+#if   defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
 #define CGAME_ABI_CDECL __attribute__((cdecl))
 #define CGAME_ABI_STDCALL __attribute__((stdcall))
 #else

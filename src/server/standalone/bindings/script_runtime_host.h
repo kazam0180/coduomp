@@ -6,11 +6,7 @@ extern "C" {
 #endif
 
 #include <ctype.h>
-#if defined(_WIN32)
-#include <string.h>
-#else
 #include <strings.h>
-#endif
 
 #include "../core_memory/core_memory_private.h"
 #include "../core_runtime/core_runtime_private.h"
@@ -36,11 +32,7 @@ extern "C" {
 #define SCRIPT_OUT_OF_MEMORY() Sys_OutOfMemory()
 /* Caller-stack storage uses the shared compiler adapter. */
 #define SCRIPT_HOST_ALLOCA(size) CODUO_ALLOCA(size)
-#if defined(_WIN32)
-#define SCRIPT_STRICMP(left, right) _stricmp((left), (right))
-#else
 #define SCRIPT_STRICMP(left, right) strcasecmp((left), (right))
-#endif
 #define SCRIPT_ISALNUM_SIGNED_BYTE(value) \
     isalnum(coduo_ctype_signed_byte_arg(value))
 #define SCRIPT_TOLOWER_SIGNED_BYTE(value) \

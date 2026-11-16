@@ -559,11 +559,7 @@ typedef struct glstate_s {
     uint32_t normalizeTarget;                   /* original +0xcc */
 } glstate_t;
 
-#if defined(_MSC_VER)
-#define RENDERER_NORETURN_IMPORT
-#else
 #define RENDERER_NORETURN_IMPORT __attribute__((noreturn))
-#endif
 
 /* Q3 supplies the inherited refimport_t identity. Windows CL_InitRef
  * constructs 38 consecutive function-pointer slots and GetRefAPI copies all

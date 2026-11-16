@@ -4,9 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#if defined(_MSC_VER)
-#define CODUO_INT32_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CODUO_INT32_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CODUO_INT32_ALWAYS_INLINE inline

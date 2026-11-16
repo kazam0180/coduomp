@@ -64,9 +64,7 @@ static const vec4_t cg_scoreboardBannerBars[6] = {
  * returns 0 while the first `n` folded characters are equal (or a shared NUL is
  * reached), nonzero otherwise. The DLL open-codes this three times over the
  * map-name buffer; one helper reproduces the identical fold+sign. */
-#if defined(_MSC_VER)
-#define CG_BANNER_COMPAT_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_BANNER_COMPAT_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_BANNER_COMPAT_ALWAYS_INLINE inline

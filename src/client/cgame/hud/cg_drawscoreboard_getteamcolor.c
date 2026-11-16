@@ -66,9 +66,7 @@
  * the three-float shape used here is exercised; portable recovered source uses
  * the standard declaration (source text, format, out pointers). */
 
-#if defined(_MSC_VER)
-#define CG_SB_COLOR_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_SB_COLOR_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_SB_COLOR_ALWAYS_INLINE inline

@@ -6,9 +6,6 @@
 #include "qcommon/game_module_abi_types.h"
 #include "networking/net_address.h"
 #include "platform/dynamic_library_boundary.h"
-#if defined(__APPLE__)
-#include "platform/macos_app_bundle.h"
-#endif
 #include "renderer/backend.h"
 #include "renderer/renderer_api.h"
 #include "system_console.h"
@@ -24,18 +21,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#include <mmsystem.h>
-#include <shellapi.h>
-#include <shellscalingapi.h>
-#else
 #include "platform/sdl_platform.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#endif
 
 enum {
     SYS_FUNCTION_SCAN_LIMIT = 1024,
@@ -53,13 +43,6 @@ qboolean sysCheckCrashOrRerun;       /* original 0x009cf2e8 */
 uint32_t sysExecutableChecksum;       /* original 0x009ceda8 */
 static char sysCurrentUser[SYS_USER_NAME_CAPACITY];
                                         /* original 0x009d0518..0x009d0917 */
-#if defined(_WIN32)
-static OSVERSIONINFOA sysOsVersionInfo;  /* original 0x0489bb98 */
-static char sysInstallMediaPath[MAX_OSPATH];
-                                        /* original 0x009cf1e8..0x009cf2e7 */
-static HBITMAP sysSplashBitmap;
-static qboolean sysSplashClassRegistered;
-#endif
 
 /* Source: CoDUOMP.exe 0x0046be10..0x0046c26a.
  * Evidence: coduomp/mcode/CoDUOMP/FUN_0046be10_0046c26b.mcode, the exact
@@ -69,80 +52,12 @@ void Sys_Init(void)
 {
     sysCpuClass_t cpuClass;
 
-#if defined(_WIN32)
-    timeBeginPeriod(1);
-#endif
 
     Cmd_AddCommand("in_restart", IN_Restart);
     Cmd_AddCommand("net_restart", NET_Restart_f);
 
-#if defined(_WIN32)
-    const char *architecture;
-
-    sysOsVersionInfo.dwOSVersionInfoSize = sizeof(sysOsVersionInfo);
-    if (GetVersionExA(&sysOsVersionInfo) == FALSE)
-        Sys_Error("Couldn't get OS info");
-    if (sysOsVersionInfo.dwMajorVersion < 4) {
-        Sys_Error("CoD:United Offensive Multiplayer requires Windows "
-                  "version 4 or greater");
-    }
-
-    switch (sysOsVersionInfo.dwPlatformId) {
-    case VER_PLATFORM_WIN32s:
-        Sys_Error("CoD:United Offensive Multiplayer doesn't run on Win32s");
-        architecture = "unknown Windows variant";
-        break;
-    case VER_PLATFORM_WIN32_NT:
-        architecture = "winnt";
-        break;
-    case VER_PLATFORM_WIN32_WINDOWS: {
-        const uint16_t build =
-            (uint16_t)sysOsVersionInfo.dwBuildNumber;
-        if (build >= SYS_WINDOWS_98_FIRST_BUILD)
-            architecture = "win98";
-        else if (build >= SYS_WINDOWS_95_OSR2_FIRST_BUILD)
-            architecture = "win95 osr2.x";
-        else
-            architecture = "win95";
-        break;
-    }
-    default:
-        architecture = "unknown Windows variant";
-        break;
-    }
-    (void)Cvar_Set2("arch", architecture, qtrue);
-
-#if UINTPTR_MAX == UINT32_MAX
-    (void)Cvar_Get(
-        "win_hinstance",
-        va("%i", (int32_t)(uintptr_t)sysApplicationInstance),
-        CVAR_ROM);
-#else
-    (void)Cvar_Get(
-        "win_hinstance",
-        va("%" PRIuPTR, (uintptr_t)sysApplicationInstance),
-        CVAR_ROM);
-#endif
-
-    WNDPROC windowProcedure = MainWndProc;
-    uintptr_t windowProcedureAddress = 0;
-    _Static_assert(sizeof(windowProcedureAddress) >= sizeof(windowProcedure),
-                   "WNDPROC must fit in uintptr_t");
-    memcpy(&windowProcedureAddress, &windowProcedure,
-           sizeof(windowProcedure));
-#if UINTPTR_MAX == UINT32_MAX
-    (void)Cvar_Get(
-        "win_wndproc", va("%i", (int32_t)windowProcedureAddress),
-        CVAR_ROM);
-#else
-    (void)Cvar_Get(
-        "win_wndproc", va("%" PRIuPTR, windowProcedureAddress),
-        CVAR_ROM);
-#endif
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native Unix renderers do not consume the
      * Win32 architecture/instance/window-procedure cvars. */
-#endif
 
     (void)Cvar_Get("sys_cpustring", "detect", 0);
     const char *const configuredCpu = Cvar_VariableString("sys_cpustring");
@@ -258,13 +173,6 @@ static int32_t coduomp_function_comparison_length(
  * already exist. The original ignores both creation and close errors. */
 void Sys_CreateCrashMarker(void)
 {
-#if defined(_WIN32)
-    HANDLE marker = CreateFileA(
-        "crash", GENERIC_WRITE, 0, NULL, CREATE_NEW,
-        FILE_ATTRIBUTE_HIDDEN, NULL);
-    if (marker != INVALID_HANDLE_VALUE)
-        CloseHandle(marker);
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: POSIX equivalent of the Windows hidden-file
      * sentinel operation. POSIX has no hidden attribute; the filename and
      * exclusive-create behavior remain identical. */
@@ -272,67 +180,8 @@ void Sys_CreateCrashMarker(void)
         open("crash", O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (marker != -1)
         close(marker);
-#endif
 }
 
-#if defined(_WIN32)
-/* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): the retail client predates
- * Windows DPI virtualization, so modern Windows treats the process as
- * DPI-unaware and stretches its windows by the display scale factor. The
- * Native fullscreen mode sizes the game window from EnumDisplaySettings,
- * which always reports physical pixels, so at 125% scale the window is
- * created 25% larger than the screen and cropped to its top-left corner.
- * Declaring DPI awareness before the first window exists makes one window
- * unit equal one physical pixel for every metric, window, and cursor API the
- * client uses, which also keeps borderless mode at true desktop resolution
- * instead of a stretched virtualized size. The three setters are resolved
- * dynamically because each first appeared in a newer Windows release:
- * per-monitor-v2 awareness (Windows 10 1703), per-monitor awareness
- * (Windows 8.1), then system awareness (Windows Vista). Systems without any
- * of them have no DPI virtualization to opt out of. */
-void coduomp_sys_enable_dpi_awareness(void)
-{
-    typedef __typeof__(&SetProcessDpiAwarenessContext) sys_set_dpi_context_fn;
-    typedef __typeof__(&SetProcessDpiAwareness) sys_set_dpi_awareness_fn;
-    typedef __typeof__(&SetProcessDPIAware) sys_set_dpi_aware_fn;
-    /* Use the SDK's context handle and constant; resolving the entry point
-     * dynamically keeps older Windows releases supported. */
-    const DPI_AWARENESS_CONTEXT perMonitorAwareV2 = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
-    /* The Windows 8.1 fallback takes the SDK's shell-scaling enumeration,
-     * with the same optional DLL loading as the newer context setter. */
-    const PROCESS_DPI_AWARENESS perMonitorAware = PROCESS_PER_MONITOR_DPI_AWARE;
-
-    HMODULE user32 = GetModuleHandleA("user32.dll");
-    if (user32 != NULL) {
-        sys_set_dpi_context_fn setContext = NULL;
-        coduomp_library_symbol(user32, "SetProcessDpiAwarenessContext",
-                               &setContext, sizeof(setContext));
-        if (setContext != NULL && setContext(perMonitorAwareV2) != FALSE)
-            return;
-    }
-
-    HMODULE shcore = LoadLibraryA("shcore.dll");
-    if (shcore != NULL) {
-        sys_set_dpi_awareness_fn setAwareness = NULL;
-        coduomp_library_symbol(shcore, "SetProcessDpiAwareness",
-                               &setAwareness, sizeof(setAwareness));
-        if (setAwareness != NULL &&
-            SUCCEEDED(setAwareness(perMonitorAware))) {
-            FreeLibrary(shcore);
-            return;
-        }
-        FreeLibrary(shcore);
-    }
-
-    if (user32 != NULL) {
-        sys_set_dpi_aware_fn setAware = NULL;
-        coduomp_library_symbol(user32, "SetProcessDPIAware", &setAware,
-                               sizeof(setAware));
-        if (setAware != NULL)
-            (void)setAware();
-    }
-}
-#endif
 
 /* Source: CoDUOMP.exe 0x0046e2e0..0x0046e474.
  * Evidence: coduomp/mcode/CoDUOMP/FUN_0046e2e0_0046e475.mcode and the PE
@@ -340,72 +189,7 @@ void coduomp_sys_enable_dpi_awareness(void)
  * that 0x009d0918 owns the startup splash rather than the gameplay window. */
 void Sys_CreateSplashWindow(void)
 {
-#if defined(_WIN32)
-    enum {
-        SYS_SPLASH_ICON_RESOURCE = 133,
-        SYS_SPLASH_WIDTH = 320,
-        SYS_SPLASH_HEIGHT = 100
-    };
-    WNDCLASSA windowClass = {0};
-    windowClass.lpfnWndProc = DefWindowProcA;
-    windowClass.hInstance = (HINSTANCE)sysApplicationInstance;
-    windowClass.hIcon = LoadIconA(
-        (HINSTANCE)sysApplicationInstance,
-        MAKEINTRESOURCEA(SYS_SPLASH_ICON_RESOURCE));
-    windowClass.hCursor = LoadCursorA(NULL, IDC_ARROW);
-    windowClass.lpszClassName = "CoD Splash Screen";
-    if (RegisterClassA(&windowClass) == 0)
-        return;
-    sysSplashClassRegistered = qtrue;
-
-    const int32_t screenWidth = GetSystemMetrics(SM_CXSCREEN);
-    const int32_t screenHeight = GetSystemMetrics(SM_CYSCREEN);
-    HBITMAP bitmap = (HBITMAP)LoadImageA(
-        NULL, "coduo.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-    if (bitmap == NULL) {
-        Sys_DestroySplashWindow();
-        return;
-    }
-    sysSplashBitmap = bitmap;
-
-    HWND splash = CreateWindowExA(
-        WS_EX_APPWINDOW, "CoD Splash Screen",
-        "CoD:United Offensive Multiplayer",
-        WS_POPUP | WS_BORDER | WS_SYSMENU,
-        (screenWidth - SYS_SPLASH_WIDTH) / 2,
-        (screenHeight - SYS_SPLASH_HEIGHT) / 2,
-        SYS_SPLASH_WIDTH, SYS_SPLASH_HEIGHT,
-        NULL, NULL, (HINSTANCE)sysApplicationInstance, NULL);
-    sysSplashWindow = splash;
-    if (splash == NULL) {
-        Sys_DestroySplashWindow();
-        return;
-    }
-
-    HWND image = CreateWindowExA(
-        0, "Static", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP,
-        0, 0, SYS_SPLASH_WIDTH, SYS_SPLASH_HEIGHT,
-        splash, NULL, (HINSTANCE)sysApplicationInstance, NULL);
-    if (image == NULL) {
-        Sys_DestroySplashWindow();
-        return;
-    }
-
-    (void)SendMessageA(
-        image, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)bitmap);
-
-    RECT imageRect;
-    (void)GetWindowRect(image, &imageRect);
-    const int32_t imageWidth = imageRect.right - imageRect.left;
-    const int32_t imageHeight = imageRect.bottom - imageRect.top;
-    (void)SetWindowPos(
-        splash, NULL,
-        (screenWidth - imageWidth) / 2,
-        (screenHeight - imageHeight) / 2,
-        imageWidth, imageHeight, SWP_NOZORDER);
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: non-Windows launchers own any splash UI. */
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046e480..0x0046e4a8, recovered from the executable
@@ -413,24 +197,6 @@ void Sys_CreateSplashWindow(void)
  * Name: exact same-module Mac symbol Sys_DestroySplashWindow. */
 void Sys_DestroySplashWindow(void)
 {
-#if defined(_WIN32)
-    if (sysSplashWindow != NULL) {
-        ShowWindow((HWND)sysSplashWindow, SW_HIDE);
-        if (DestroyWindow((HWND)sysSplashWindow) == FALSE)
-            return;
-        sysSplashWindow = NULL;
-    }
-    /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-    if (sysSplashBitmap != NULL) {
-        (void)DeleteObject(sysSplashBitmap);
-        sysSplashBitmap = NULL;
-    }
-    if (sysSplashClassRegistered != qfalse) {
-        (void)UnregisterClassA("CoD Splash Screen",
-                               (HINSTANCE)sysApplicationInstance);
-        sysSplashClassRegistered = qfalse;
-    }
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046e4b0..0x0046e4ce, recovered from the executable
@@ -438,12 +204,6 @@ void Sys_DestroySplashWindow(void)
  * startup splash window. */
 void Sys_ShowSplashWindow(void)
 {
-#if defined(_WIN32)
-    if (sysSplashWindow != NULL) {
-        ShowWindow((HWND)sysSplashWindow, SW_SHOW);
-        UpdateWindow((HWND)sysSplashWindow);
-    }
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046e4d0..0x0046e4e2, recovered from the executable
@@ -451,10 +211,6 @@ void Sys_ShowSplashWindow(void)
  * Name: exact same-module Mac symbol Sys_HideSplashWindow. */
 void Sys_HideSplashWindow(void)
 {
-#if defined(_WIN32)
-    if (sysSplashWindow != NULL)
-        ShowWindow((HWND)sysSplashWindow, SW_HIDE);
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046ad20..0x0046ae1f.
@@ -530,9 +286,6 @@ void Sys_Shutdown(void)
 {
     /* The Windows compiler inlines Sys_DestroySplashWindow here. */
     Sys_DestroySplashWindow();
-#if defined(_WIN32)
-    timeEndPeriod(1);
-#endif
 
     IN_Shutdown();
     CL_ShutdownCGame();
@@ -556,35 +309,6 @@ void Sys_UnableToLoadDLLError(void)
  * Name and signature: exact same-module Mac symbol Sys_StartProcess. */
 void Sys_StartProcess(const char *executableName, qboolean doExit)
 {
-#if defined(_WIN32)
-    char workingDirectory[MAX_OSPATH];
-    STARTUPINFOA startupInfo;
-    PROCESS_INFORMATION processInfo;
-
-    memset(&startupInfo, 0, sizeof(startupInfo));
-    startupInfo.cb = sizeof(startupInfo);
-    GetCurrentDirectoryA(sizeof(workingDirectory), workingDirectory);
-
-    if (CreateProcessA(
-            NULL,
-            va("\"%s\\%s\"", workingDirectory, executableName),
-            NULL, NULL, FALSE, 0, NULL, NULL,
-            &startupInfo, &processInfo) == FALSE) {
-        const DWORD errorCode = GetLastError();
-        char *systemMessage = NULL;
-        FormatMessageA(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, errorCode,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (char *)&systemMessage, 0, NULL);
-        Com_Error(
-            ERR_FATAL,
-            "EXE_ERR_COULDNT_START_PROCESS\x15'%s\\%s'\n%s\n%08x",
-            workingDirectory, executableName, systemMessage, errorCode);
-    }
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: POSIX implementation of the Windows
      * CreateProcess boundary. The original starts one executable from the
      * current directory without passing additional arguments. */
@@ -610,7 +334,6 @@ void Sys_StartProcess(const char *executableName, qboolean doExit)
                   workingDirectory, executableName, strerror(errno),
                   (uint32_t)errno);
     }
-#endif
 
     if (doExit != qfalse)
         Cbuf_AddText("quit\n");
@@ -621,30 +344,15 @@ void Sys_StartProcess(const char *executableName, qboolean doExit)
  * Name and signature: exact same-module Mac symbol Sys_OpenURL. */
 void Sys_OpenURL(const char *url, qboolean doExit)
 {
-#if defined(_WIN32)
-    /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-    if (ShellExecuteA(NULL, "open", url, NULL, NULL, SW_RESTORE) == NULL) {
-        Com_Error(1, "EXE_ERR_COULDNT_OPEN_URL\x15%s", url);
-    }
-
-    HWND foregroundWindow = GetForegroundWindow();
-    if (foregroundWindow != NULL)
-        ShowWindow(foregroundWindow, SW_MAXIMIZE);
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native desktop URL opener corresponding to
      * the Windows ShellExecuteA boundary. */
     const pid_t child = fork();
     if (child == 0) {
-#if defined(__APPLE__)
-        execlp("open", "open", url, (char *)NULL);
-#else
         execlp("xdg-open", "xdg-open", url, (char *)NULL);
-#endif
         _exit(127);
     }
     if (child < 0)
         Com_Error(1, "EXE_ERR_COULDNT_OPEN_URL\x15%s", url);
-#endif
 
     if (doExit != qfalse)
         Cbuf_AddText("quit\n");
@@ -664,19 +372,6 @@ void Sys_LoadingKeepAlive(void)
  * ES_DISPLAY_REQUIRED to reset the display idle timer. */
 void coduomp_loading_keepalive(void)
 {
-#if defined(_WIN32)
-    MSG message;
-
-    if (PeekMessageA(
-            &message, NULL, WM_POWERBROADCAST, WM_POWERBROADCAST,
-            PM_NOREMOVE) != FALSE &&
-        GetMessageA(
-            &message, NULL, WM_POWERBROADCAST, WM_POWERBROADCAST) > 0) {
-        TranslateMessage(&message);
-        DispatchMessageA(&message);
-    }
-    (void)SetThreadExecutionState(ES_DISPLAY_REQUIRED);
-#endif
 }
 
 /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
@@ -695,20 +390,9 @@ _Noreturn void Sys_Error(const char *format, ...)
     Sys_Print(errorText);
     Sys_Print("\n");
 
-#if defined(_WIN32)
-    Sys_SetErrorText(errorText);
-    Sys_ShowConsole(SYS_CONSOLE_VISIBLE, qtrue);
-
-    MSG message;
-    while (GetMessageA(&message, NULL, 0, 0) != FALSE) {
-        TranslateMessage(&message);
-        DispatchMessageA(&message);
-    }
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native fatal-error presentation until the
      * native application shell supplies a graphical error console. Sys_Print
      * above remains the native text presentation boundary. */
-#endif
 
     Com_Quit_f();
 }
@@ -718,15 +402,8 @@ _Noreturn void Sys_Error(const char *format, ...)
  * Name and no-argument signature: exact same-module Mac symbol Sys_Quit. */
 _Noreturn void Sys_Quit(void)
 {
-#if defined(_WIN32)
-    timeEndPeriod(1);
-#endif
     IN_Shutdown();
 
-#if defined(_WIN32)
-    Sys_DestroyConsole();
-    Sys_DeleteProcessLockFile();
-#endif
 
     Sys_ShutdownLocalization();
     Cvar_Shutdown();
@@ -734,9 +411,7 @@ _Noreturn void Sys_Quit(void)
     Com_InitPushEvent();
     Sys_ClearEventQueue();
     Key_Shutdown();
-#if !defined(_WIN32)
     CoduoSDL_Shutdown();
-#endif
     exit(EXIT_SUCCESS);
 }
 
@@ -759,42 +434,9 @@ void Sys_Warning(const char *text)
  * the shipped PE, so this is retained but inactive Windows platform source. */
 qboolean Sys_ScanForInstallMedia(void)
 {
-#if defined(_WIN32)
-    char driveRoot[4] = "c:\\";
-    char candidatePath[MAX_OSPATH];
-
-    do {
-        if (GetDriveTypeA(driveRoot) == DRIVE_CDROM) {
-            FILE *file;
-
-            sprintf(sysInstallMediaPath, "%s%s", driveRoot, "");
-            sprintf(candidatePath, "%s\\%s", sysInstallMediaPath,
-                    "setup\\setup.exe");
-            file = fopen(candidatePath, "r");
-            if (file != NULL) {
-                fclose(file);
-                return qtrue;
-            }
-
-            sprintf(sysInstallMediaPath, "%s%s", driveRoot,
-                    "bin\\x86\\glibc-2.1");
-            sprintf(candidatePath, "%s\\%s", sysInstallMediaPath,
-                    "setup\\setup");
-            file = fopen(candidatePath, "r");
-            if (file != NULL) {
-                fclose(file);
-                return qtrue;
-            }
-        }
-        ++driveRoot[0];
-    } while (driveRoot[0] <= 'z');
-
-    return qfalse;
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: modern non-Windows builds do not scan
      * drive-letter install media. */
     return qfalse;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046aff0..0x0046b29a.
@@ -813,132 +455,8 @@ qboolean Sys_ScanForInstallMedia(void)
  * i386. */
 int32_t Sys_MonkeyShouldBeSpanked(void)
 {
-#if defined(_WIN32)
-    static const char marker[] = "q3monkeyid";
-    char **const arguments = __argv;
-
-    if (arguments[1] == NULL ||
-        Q_stricmpn(arguments[1], "monkey", 99999) != 0) {
-        char tempExecutable[MAX_OSPATH];
-        char modulePath[MAX_OSPATH];
-        char commandLine[SYS_MONKEY_COMMAND_CAPACITY];
-        STARTUPINFOA startupInfo;
-        PROCESS_INFORMATION processInfo;
-
-        GetModuleFileNameA(NULL, modulePath, sizeof(modulePath));
-        GetTempPathA(sizeof(tempExecutable), tempExecutable);
-        GetTempFileNameA(tempExecutable, "Del", 0, tempExecutable);
-        CopyFileA(modulePath, tempExecutable, FALSE);
-
-        const HANDLE tempFile = CreateFileA(
-            tempExecutable, 0, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-            FILE_FLAG_DELETE_ON_CLOSE, NULL);
-        const HANDLE originalProcess = OpenProcess(
-            SYNCHRONIZE, TRUE, GetCurrentProcessId());
-
-        /* NOT_FROM_ORIGINAL_SOURCE: validate this recovered engine boundary input and state before use. */
-#if UINTPTR_MAX == UINT32_MAX
-        Com_sprintf(commandLine, sizeof(commandLine),
-                    "%s monkey %d %d \"%s\"",
-                    tempExecutable, (int32_t)sysExecutableChecksum,
-                    (int32_t)(intptr_t)originalProcess, modulePath);
-#else
-        Com_sprintf(commandLine, sizeof(commandLine),
-                    "%s monkey %d %" PRIdPTR " \"%s\"",
-                    tempExecutable, (int32_t)sysExecutableChecksum,
-                    (intptr_t)originalProcess, modulePath);
-#endif
-
-        memset(&startupInfo, 0, sizeof(startupInfo));
-        startupInfo.cb = sizeof(startupInfo);
-        CreateProcessA(
-            NULL, commandLine, NULL, NULL, TRUE, 0, NULL, NULL,
-            &startupInfo, &processInfo);
-        CloseHandle(originalProcess);
-        CloseHandle(tempFile);
-        exit(EXIT_SUCCESS);
-    }
-
-    sysExecutableChecksum = (uint32_t)coduo_crt_atoi(arguments[2]);
-#if UINTPTR_MAX == UINT32_MAX
-    /* 0x0046b130..0x0046b141 calls the same 32-bit atoi entry for both
-     * serialized dwords. Keep the native-width parser only for Win64, where
-     * the process handle no longer fits the retail decimal lane. */
-    const intptr_t originalProcessValue =
-        (intptr_t)coduo_crt_atoi(arguments[3]);
-#else
-    const intptr_t originalProcessValue =
-        (intptr_t)strtoimax(arguments[3], NULL, 10);
-#endif
-    const HANDLE originalProcess =
-        (HANDLE)(uintptr_t)originalProcessValue;
-    WaitForSingleObject(originalProcess, INFINITE);
-    CloseHandle(originalProcess);
-
-    FILE *file = fopen(arguments[4], "rb");
-    if (file == NULL)
-        return 0;
-
-    fseek(file, 0, SEEK_END);
-    const long fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-    uint8_t *const image = malloc((size_t)fileSize);
-    if (image == NULL)
-        Sys_OutOfMemory();
-
-    memset(image, 0, (size_t)fileSize);
-    const size_t readCount =
-        fread(image, (size_t)fileSize, 1, file);
-    if (readCount != 1) {
-        /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        return (int32_t)readCount;
-    }
-    fclose(file);
-
-    const int32_t markerLength = (int32_t)strlen(marker);
-    if (fileSize <= 0)
-        return markerLength;
-
-    int32_t comparison = markerLength;
-    long markerOffset;
-    for (markerOffset = 0; markerOffset < fileSize; ++markerOffset) {
-        /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        comparison = Q_strncmp(
-            (const char *)&image[markerOffset], marker, markerLength);
-        if (comparison == 0)
-            break;
-    }
-    if (markerOffset >= fileSize)
-        return comparison;
-
-    image[markerOffset] = (uint8_t)(sysExecutableChecksum >> 24);
-    image[markerOffset + 1] =
-        (uint8_t)(sysExecutableChecksum >> 16);
-    image[markerOffset + 2] =
-        (uint8_t)(sysExecutableChecksum >> 8);
-    image[markerOffset + 3] = (uint8_t)sysExecutableChecksum;
-    memset(&image[markerOffset + sizeof(sysExecutableChecksum)], 0,
-           sizeof(marker) - 1 - sizeof(sysExecutableChecksum));
-
-    file = fopen(arguments[4], "wb");
-    if (file == NULL)
-        return 0;
-    const size_t writeCount =
-        fwrite(image, (size_t)fileSize, 1, file);
-    if (writeCount != 1) {
-        /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        return (int32_t)writeCount;
-    }
-
-    fclose(file);
-    free(image);
-    exit(EXIT_SUCCESS);
-#else
     /* The same-module Mac implementation is an eight-byte `return 0` stub. */
     return 0;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046b6b0..0x0046b6b5.
@@ -957,12 +475,6 @@ int32_t Sys_GetProcessorId(void)
  * platform query fails and when it succeeds with an empty string. */
 char *Sys_GetCurrentUser(void)
 {
-#if defined(_WIN32)
-    DWORD bufferBytes = sizeof(sysCurrentUser);
-
-    if (GetUserNameA(sysCurrentUser, &bufferBytes) == FALSE)
-        memcpy(sysCurrentUser, "player", sizeof("player"));
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: libc environment replacement for the Win32
      * account-name query on native Unix platforms. */
     const char *const user = getenv("USER");
@@ -970,7 +482,6 @@ char *Sys_GetCurrentUser(void)
         Q_strncpyz(sysCurrentUser, user, sizeof(sysCurrentUser));
     else
         sysCurrentUser[0] = '\0';
-#endif
 
     if (sysCurrentUser[0] == '\0')
         memcpy(sysCurrentUser, "player", sizeof("player"));
@@ -984,40 +495,12 @@ char *Sys_GetCurrentUser(void)
  * carriage return, or backspace by calling strtok and ignoring its result. */
 char *Sys_GetClipboardData(void)
 {
-#if defined(_WIN32)
-    char *clipboardText = NULL;
-
-    if (OpenClipboard(NULL) == FALSE)
-        return NULL;
-
-    HANDLE clipboardHandle = GetClipboardData(CF_TEXT);
-    if (clipboardHandle != NULL) {
-        const char *const source = GlobalLock(clipboardHandle);
-        if (source != NULL) {
-            const SIZE_T allocationBytes = GlobalSize(clipboardHandle);
-            /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-            if (allocationBytes != 0 && allocationBytes <= UINT32_MAX) {
-                const size_t copyBytes = (size_t)allocationBytes - 1u;
-                clipboardText = Z_MallocInternal((size_t)allocationBytes + 1u);
-                strncpy(clipboardText, source, copyBytes);
-                clipboardText[copyBytes] = '\0';
-            }
-            GlobalUnlock(clipboardHandle);
-            if (clipboardText != NULL)
-                (void)strtok(clipboardText, "\n\r\b");
-        }
-    }
-
-    CloseClipboard();
-    return clipboardText;
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: SDL supplies the macOS/Unix window-system
      * clipboard while preserving the original malloc-owned return contract. */
     char *const clipboardText = coduomp_sdl_get_clipboard_text_compat();
     if (clipboardText != NULL)
         (void)strtok(clipboardText, "\n\r\b");
     return clipboardText;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046b740..0x0046b75d, recovered from the executable
@@ -1106,9 +589,6 @@ void *Sys_LoadDll(const char *moduleName, char *loadedPath,
     char dllName[MAX_QPATH];
     char pureIdentityName[MAX_QPATH];
     char dllPath[MAX_OSPATH];
-#if defined(__APPLE__)
-    char bundledDllPath[MAX_OSPATH];
-#endif
     const char *const emptyString = "";
     const cvar_t *cvar;
     const char *basePath;
@@ -1134,17 +614,7 @@ void *Sys_LoadDll(const char *moduleName, char *loadedPath,
      */
     Com_sprintf(pureIdentityName, sizeof(pureIdentityName),
                 "uo_%s_mp_x86.dll", moduleName);
-#if defined(_WIN32)
-    Q_strncpyz(dllName, pureIdentityName, sizeof(dllName));
-#elif defined(__APPLE__) && defined(__aarch64__)
-    /*
-     * NOT_FROM_ORIGINAL_SOURCE: native module filename for the reconstructed
-     * Apple Silicon ABI. The module entry-point contract remains dllEntry /
-     * vmMain; only the platform loader artifact name differs.
-     */
-    Com_sprintf(
-        dllName, sizeof(dllName), "uo_%s_mp_arm64.dylib", moduleName);
-#elif defined(__linux__) && defined(__i386__)
+#if   defined(__linux__) && defined(__i386__)
     /*
      * NOT_FROM_ORIGINAL_SOURCE: native module filename for the reconstructed
      * Linux i386 ABI.
@@ -1208,14 +678,6 @@ void *Sys_LoadDll(const char *moduleName, char *loadedPath,
     }
 
     libraryHandle = NULL;
-#if defined(__APPLE__)
-    if (reconstructedClientModule != qfalse &&
-        coduomp_macos_framework_module_path(
-            dllName, bundledDllPath, sizeof(bundledDllPath)) != 0) {
-        loadedFile = bundledDllPath;
-        libraryHandle = coduomp_library_open(loadedFile);
-    }
-#endif
     if (libraryHandle == NULL) {
         loadedFile = dllPath;
         libraryHandle = coduomp_library_open(loadedFile);
@@ -1282,29 +744,9 @@ void *Sys_LoadDll(const char *moduleName, char *loadedPath,
  * checksum archived by Sys_ArchiveInfo. */
 uint32_t Sys_GetExecutableChecksum(const void *imageBase)
 {
-#if defined(_WIN32)
-    const uint8_t *const image = (const uint8_t *)imageBase;
-    const IMAGE_DOS_HEADER *const dosHeader =
-        (const IMAGE_DOS_HEADER *)image;
-    const IMAGE_NT_HEADERS *const ntHeaders =
-        (const IMAGE_NT_HEADERS *)(image + dosHeader->e_lfanew);
-
-    if (IsBadReadPtr(ntHeaders, sizeof(*ntHeaders)) != FALSE ||
-        ntHeaders->Signature != IMAGE_NT_SIGNATURE) {
-        return 0;
-    }
-
-    const IMAGE_SECTION_HEADER *const section =
-        (const IMAGE_SECTION_HEADER *)
-            ((const uint8_t *)ntHeaders + sizeof(*ntHeaders));
-    return Com_BlockChecksum(
-        image + section->VirtualAddress,
-        (int32_t)section->SizeOfRawData);
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: non-PE native executables need a platform
      * image-section checksum provider. Returning zero preserves the existing
      * configuration-cvar convention until that platform boundary is wired. */
     (void)imageBase;
     return 0;
-#endif
 }

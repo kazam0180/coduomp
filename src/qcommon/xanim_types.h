@@ -265,9 +265,7 @@ typedef struct xanim_deferred_notify_s {
 } xanim_deferred_notify_t;
 
 #if UINTPTR_MAX == UINT32_MAX
-#if defined(_MSC_VER)
-#define XANIM_TYPES_ALIGNOF(type) __alignof(type)
-#elif defined(__cplusplus)
+#if   defined(__cplusplus)
 #define XANIM_TYPES_ALIGNOF(type) alignof(type)
 #else
 #define XANIM_TYPES_ALIGNOF(type) __alignof__(type)

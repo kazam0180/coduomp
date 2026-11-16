@@ -1,7 +1,4 @@
 /* Select the Windows API level before renderer headers include the SDK. */
-#if defined(_WIN32) && !defined(_WIN32_WINNT)
-#define _WIN32_WINNT 0x0601
-#endif
 
 #include "backend.h"
 
@@ -22,22 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#include "../system_console.h"
-#include "../system_input.h"
-#include "../system_localization.h"
-#include "../system_platform.h"
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#else
 #include "../platform/sdl_platform.h"
-#endif
 
 enum renderer_pixel_format_flag_e {
     R_PFD_DOUBLEBUFFER = 0x00000001,
@@ -83,82 +65,6 @@ qboolean rendererWin32FullscreenModeSet;
 /* NOT_FROM_ORIGINAL_SOURCE_STORAGE_FILE: selected platform display used by
  * mode queries and native window creation during one renderer start. */
 static int32_t coduompRendererDisplayIndex;
-#if defined(_WIN32)
-static renderer_pixel_format_descriptor_t rendererWin32PixelFormat;
-static qboolean rendererWin32WindowClassRegistered;
-static int32_t coduompRendererDisplayX;
-static int32_t coduompRendererDisplayY;
-/* NOT_FROM_ORIGINAL_SOURCE: retain the exact device and desktop mode across
- * focus changes and renderer restarts, even if r_display is changed meanwhile. */
-static char coduompRendererExclusiveDevice[CCHDEVICENAME];
-static DEVMODEA coduompRendererExclusiveDesktopMode;
-static DEVMODEA coduompRendererExclusiveMode;
-static qboolean coduompRendererExclusiveActive;
-static qboolean coduompRendererExclusiveChanging;
-
-/* NOT_FROM_ORIGINAL_SOURCE: change only the selected Windows display and
- * restore its captured desktop settings without writing display preferences. */
-static qboolean coduomp_glw_set_exclusive_active_compat(qboolean active)
-{
-    if (rendererWin32FullscreenModeSet == qfalse || coduompRendererExclusiveActive == active)
-        return qtrue;
-    if (coduompRendererExclusiveChanging != qfalse)
-        return qfalse;
-
-    coduompRendererExclusiveChanging = qtrue;
-    const LONG result = ChangeDisplaySettingsExA(
-        coduompRendererExclusiveDevice,
-        active != qfalse ? &coduompRendererExclusiveMode : &coduompRendererExclusiveDesktopMode,
-        NULL, active != qfalse ? CDS_FULLSCREEN : 0, NULL);
-    if (result == DISP_CHANGE_SUCCESSFUL) {
-        coduompRendererExclusiveActive = active;
-        if (active != qfalse) {
-            DEVMODEA currentMode = {0};
-
-            currentMode.dmSize = sizeof(currentMode);
-            if (EnumDisplaySettingsA(coduompRendererExclusiveDevice, ENUM_CURRENT_SETTINGS, &currentMode) != FALSE) {
-                coduompRendererDisplayX = currentMode.dmPosition.x;
-                coduompRendererDisplayY = currentMode.dmPosition.y;
-            }
-        }
-    } else {
-        ri.Printf(R_PRINT_WARNING, "WARNING: could not %s exclusive display %s: ",
-                  active != qfalse ? "activate" : "restore", coduompRendererExclusiveDevice);
-        GLW_PrintDisplayChangeError(result);
-    }
-    coduompRendererExclusiveChanging = qfalse;
-    return result == DISP_CHANGE_SUCCESSFUL ? qtrue : qfalse;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: forget exclusive ownership only after its
- * desktop mode has been restored successfully. */
-static qboolean coduomp_glw_restore_display_compat(void)
-{
-    if (coduomp_glw_set_exclusive_active_compat(qfalse) == qfalse)
-        return qfalse;
-    rendererWin32FullscreenModeSet = qfalse;
-    return qtrue;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: exclusive windows relinquish the display while
- * another application has focus, then return to the same monitor and mode. */
-void coduomp_glw_exclusive_focus_changed_compat(qboolean active)
-{
-    if (rendererWin32FullscreenModeSet == qfalse || coduompRendererExclusiveChanging != qfalse ||
-        coduompRendererExclusiveActive == active || win32MainWindow == NULL)
-        return;
-    if (coduomp_glw_set_exclusive_active_compat(active) == qfalse)
-        return;
-
-    if (active != qfalse) {
-        SetWindowPos(win32MainWindow, HWND_TOPMOST, coduompRendererDisplayX, coduompRendererDisplayY,
-                     (int32_t)coduompRendererExclusiveMode.dmPelsWidth,
-                     (int32_t)coduompRendererExclusiveMode.dmPelsHeight, SWP_NOACTIVATE);
-    } else if (IsWindowVisible(win32MainWindow) != FALSE) {
-        ShowWindow(win32MainWindow, SW_MINIMIZE);
-    }
-}
-#endif
 
 /* Source: CoDUOMP.exe 0x004f3fa0..0x004f4079.
  * Evidence: coduomp/mcode/CoDUOMP/FUN_004f3fa0_004f407a.mcode.
@@ -202,139 +108,11 @@ int32_t GLW_ChoosePFD(
     renderer_wgl_device_context_t deviceContext,
     renderer_pixel_format_descriptor_t *preferred)
 {
-#if defined(_WIN32)
-    renderer_pixel_format_descriptor_t formats[R_MAX_PIXEL_FORMATS + 1];
-    int32_t selected = 0;
-
-    ri.Printf(R_PRINT_ALL, "...GLW_ChoosePFD( %d, %d, %d )\n",
-              preferred->cColorBits, preferred->cDepthBits,
-              preferred->cStencilBits);
-
-    int32_t formatCount = DescribePixelFormat(
-        (HDC)deviceContext, 1, sizeof(formats[0]),
-        &formats[0]);
-    if (formatCount > R_MAX_PIXEL_FORMATS) {
-        ri.Printf(R_PRINT_WARNING,
-                  "...numPFDs > MAX_PFDS (%d > %d)\n",
-                  formatCount, R_MAX_PIXEL_FORMATS);
-        formatCount = R_MAX_PIXEL_FORMATS;
-    }
-    ri.Printf(R_PRINT_ALL, "...%d PFDs found\n", formatCount - 1);
-
-    for (int32_t index = 1; index <= formatCount; ++index) {
-        renderer_pixel_format_descriptor_t *candidate = &formats[index];
-        DescribePixelFormat(
-            (HDC)deviceContext, index, sizeof(*candidate),
-            candidate);
-
-        if ((candidate->dwFlags & R_PFD_GENERIC_FORMAT) != 0 &&
-            r_allowSoftwareGL->integer == 0) {
-            if (r_logFile->integer != 0) {
-                ri.Printf(R_PRINT_ALL,
-                          "...PFD %d rejected, software acceleration\n",
-                          index);
-            }
-            continue;
-        }
-
-        if (r_logFile->integer != 0) {
-            ri.Printf(R_PRINT_ALL,
-                      "ChoosePFD: format %i: %i color %i depth %i stencil\n",
-                      index, candidate->cColorBits, candidate->cDepthBits,
-                      candidate->cStencilBits);
-        }
-
-        if (candidate->iPixelType != R_PFD_TYPE_RGBA) {
-            if (r_logFile->integer != 0)
-                ri.Printf(R_PRINT_ALL,
-                          "...PFD %d rejected, not RGBA\n", index);
-            continue;
-        }
-        if ((candidate->dwFlags & preferred->dwFlags) != preferred->dwFlags) {
-            if (r_logFile->integer != 0) {
-                ri.Printf(R_PRINT_ALL,
-                          "...PFD %d rejected, improper flags (%x instead of %x)\n",
-                          index, (unsigned int)candidate->dwFlags, (unsigned int)preferred->dwFlags);
-            }
-            continue;
-        }
-        if (candidate->cDepthBits < R_MIN_DEPTH_BITS) {
-            if (r_logFile->integer != 0) {
-                ri.Printf(R_PRINT_ALL,
-                          "...PFD %d rejected, insufficient depth bits (%d instead of %d)\n",
-                          index, candidate->cDepthBits, preferred->cDepthBits);
-            }
-            continue;
-        }
-        if (candidate->cStencilBits < R_MIN_STENCIL_BITS &&
-            preferred->cStencilBits > 0) {
-            if (r_logFile->integer != 0) {
-                ri.Printf(R_PRINT_ALL,
-                          "...PFD %d rejected, insufficient stencil bits (%d instead of %d)\n",
-                          index, candidate->cStencilBits,
-                          preferred->cStencilBits);
-            }
-            continue;
-        }
-
-        if (selected == 0) {
-            selected = index;
-            continue;
-        }
-
-        const renderer_pixel_format_descriptor_t *best = &formats[selected];
-        /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        if (((candidate->dwFlags ^ best->dwFlags) & R_PFD_STEREO) != 0 &&
-            (preferred->dwFlags & R_PFD_STEREO) != 0) {
-            selected = index;
-            continue;
-        }
-        if (best->cColorBits != preferred->cColorBits &&
-            (candidate->cColorBits == preferred->cColorBits ||
-             candidate->cColorBits > best->cColorBits)) {
-            selected = index;
-            continue;
-        }
-        if (best->cDepthBits != preferred->cDepthBits &&
-            (candidate->cDepthBits == preferred->cDepthBits ||
-             candidate->cDepthBits > best->cDepthBits)) {
-            selected = index;
-            continue;
-        }
-        if (best->cStencilBits != preferred->cStencilBits &&
-            (candidate->cStencilBits == preferred->cStencilBits ||
-             (candidate->cStencilBits > best->cStencilBits &&
-              preferred->cStencilBits > 0))) {
-            selected = index;
-        }
-    }
-
-    if (selected == 0)
-        return 0;
-
-    const renderer_pixel_format_descriptor_t *best = &formats[selected];
-    if ((best->dwFlags & R_PFD_GENERIC_FORMAT) != 0) {
-        if (r_allowSoftwareGL->integer == 0) {
-            ri.Printf(R_PRINT_ALL,
-                      "...no hardware acceleration found\n");
-            return 0;
-        }
-        ri.Printf(R_PRINT_ALL, "...using software emulation\n");
-    } else if ((best->dwFlags & R_PFD_GENERIC_ACCELERATED) != 0) {
-        ri.Printf(R_PRINT_ALL, "...MCD acceleration found\n");
-    } else {
-        ri.Printf(R_PRINT_ALL, "...hardware acceleration found\n");
-    }
-
-    *preferred = *best;
-    return selected;
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: WGL/GDI is absent on non-Windows hosts; the
      * native renderer platform implementation supplies its own format path. */
     (void)deviceContext;
     (void)preferred;
     return 0;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f4110..0x004f427a.
@@ -345,58 +123,9 @@ int32_t GLW_ChoosePFD(
 renderer_wgl_setup_result_t GLW_SetPFD(
     renderer_pixel_format_descriptor_t *descriptor)
 {
-#if defined(_WIN32)
-    if (rendererWin32PixelFormatSet == qfalse) {
-        const int32_t pixelFormat =
-            GLW_ChoosePFD(rendererWin32DeviceContext, descriptor);
-        if (pixelFormat == 0) {
-            ri.Printf(R_PRINT_ALL, "...GLW_ChoosePFD failed\n");
-            return R_WGL_SETUP_PIXEL_FORMAT_FAILED;
-        }
-
-        ri.Printf(R_PRINT_ALL, "...PIXELFORMAT %d selected\n", pixelFormat);
-        DescribePixelFormat(
-            (HDC)rendererWin32DeviceContext, pixelFormat,
-            sizeof(*descriptor), descriptor);
-        if (SetPixelFormat(
-                (HDC)rendererWin32DeviceContext, pixelFormat,
-                descriptor) == FALSE) {
-            ri.Printf(R_PRINT_ALL, "...SetPixelFormat failed\n",
-                      rendererWin32DeviceContext);
-            return R_WGL_SETUP_PIXEL_FORMAT_FAILED;
-        }
-        rendererWin32PixelFormatSet = qtrue;
-    }
-
-    if (rendererWin32RenderContext != NULL)
-        return R_WGL_SETUP_SUCCESS;
-
-    ri.Printf(R_PRINT_ALL, "...creating GL context: ");
-    rendererWin32RenderContext =
-        qwglCreateContext(rendererWin32DeviceContext);
-    if (rendererWin32RenderContext != NULL) {
-        ri.Printf(R_PRINT_ALL, "succeeded\n");
-        ri.Printf(R_PRINT_ALL, "...making context current: ");
-        if (qwglMakeCurrent(
-                rendererWin32DeviceContext,
-                rendererWin32RenderContext) != 0) {
-            ri.Printf(R_PRINT_ALL, "succeeded\n");
-            if (GLW_ValidateOpenGLStrings() != qfalse)
-                return R_WGL_SETUP_SUCCESS;
-            qwglMakeCurrent(NULL, NULL);
-        }
-
-        qwglDeleteContext(rendererWin32RenderContext);
-        rendererWin32RenderContext = NULL;
-    }
-
-    ri.Printf(R_PRINT_ALL, "failed\n");
-    return R_WGL_SETUP_CONTEXT_FAILED;
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: WGL is absent on non-Windows hosts. */
     (void)descriptor;
     return R_WGL_SETUP_CONTEXT_FAILED;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f4280..0x004f44b2.
@@ -406,96 +135,6 @@ renderer_wgl_setup_result_t GLW_SetPFD(
  * establish this as the Win32 OpenGL driver initializer. */
 qboolean GLW_InitDriver(int32_t colorBits)
 {
-#if defined(_WIN32)
-    ri.Printf(R_PRINT_ALL, "Initializing OpenGL driver\n");
-
-    if (rendererWin32DeviceContext == NULL) {
-        ri.Printf(R_PRINT_ALL, "...getting DC: ");
-        rendererWin32DeviceContext =
-            (renderer_wgl_device_context_t)GetDC(win32MainWindow);
-        if (rendererWin32DeviceContext == NULL) {
-            ri.Printf(R_PRINT_ALL, "failed\n");
-            return qfalse;
-        }
-        ri.Printf(R_PRINT_ALL, "succeeded\n");
-    }
-
-    if (colorBits == 0)
-        colorBits = rendererWin32DesktopColorBits;
-
-    int32_t depthBits = r_depthbits->integer;
-    if (depthBits == 0)
-        depthBits = colorBits > R_BASE_COLOR_BITS
-                        ? R_HIGH_QUALITY_DEPTH_BITS
-                        : R_BASE_COLOR_BITS;
-
-    int32_t stencilBits = r_stencilbits->integer;
-    if (depthBits < R_HIGH_QUALITY_DEPTH_BITS)
-        stencilBits = 0;
-
-    if (rendererWin32PixelFormatSet == qfalse) {
-        GLW_BuildPFD(&rendererWin32PixelFormat, colorBits, depthBits,
-                     stencilBits, qfalse);
-        renderer_wgl_setup_result_t result =
-            GLW_SetPFD(&rendererWin32PixelFormat);
-        if (result != R_WGL_SETUP_SUCCESS) {
-            if (result == R_WGL_SETUP_CONTEXT_FAILED) {
-                ri.Printf(R_PRINT_ALL, "...failed hard\n");
-                return qfalse;
-            }
-
-            if (r_colorbits->integer == rendererWin32DesktopColorBits &&
-                stencilBits == 0) {
-                ReleaseDC(win32MainWindow,
-                          (HDC)rendererWin32DeviceContext);
-                rendererWin32DeviceContext = NULL;
-                ri.Printf(R_PRINT_ALL,
-                          "...failed to find an appropriate PIXELFORMAT\n");
-                return qfalse;
-            }
-
-            if (colorBits > rendererWin32DesktopColorBits)
-                colorBits = rendererWin32DesktopColorBits;
-            GLW_BuildPFD(&rendererWin32PixelFormat, colorBits, depthBits,
-                         0, qfalse);
-            if (GLW_SetPFD(&rendererWin32PixelFormat) !=
-                R_WGL_SETUP_SUCCESS) {
-                ReleaseDC(win32MainWindow,
-                          (HDC)rendererWin32DeviceContext);
-                rendererWin32DeviceContext = NULL;
-                ri.Printf(R_PRINT_ALL,
-                          "...failed to find an appropriate PIXELFORMAT\n");
-                return qfalse;
-            }
-        }
-    }
-
-    int32_t maximumTextureSize;
-    qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTextureSize);
-    if (glConfig.vidWidth <= maximumTextureSize &&
-        glConfig.vidHeight <= maximumTextureSize) {
-        glConfig.colorBits = rendererWin32PixelFormat.cColorBits;
-        glConfig.depthBits = rendererWin32PixelFormat.cDepthBits;
-        glConfig.stencilBits = rendererWin32PixelFormat.cStencilBits;
-        return qtrue;
-    }
-
-    if (rendererWin32RenderContext != NULL) {
-        qwglMakeCurrent(NULL, NULL);
-        qwglDeleteContext(rendererWin32RenderContext);
-        rendererWin32RenderContext = NULL;
-    }
-    if (rendererWin32DeviceContext != NULL) {
-        ReleaseDC(win32MainWindow, (HDC)rendererWin32DeviceContext);
-        rendererWin32DeviceContext = NULL;
-    }
-    rendererWin32PixelFormatSet = qfalse;
-    ri.Printf(
-        R_PRINT_ALL,
-        "video card cannot set mode %ix%i because GL_MAX_TEXTURE_SIZE is only %i\n",
-        glConfig.vidWidth, glConfig.vidHeight, maximumTextureSize);
-    return qfalse;
-#else
     int32_t maximumTextureSize;
 
     (void)colorBits;
@@ -517,7 +156,6 @@ qboolean GLW_InitDriver(int32_t colorBits)
         &glConfig.colorBits, &glConfig.depthBits,
         &glConfig.stencilBits);
     return qtrue;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f44c0..0x004f4770.
@@ -529,117 +167,6 @@ qboolean GLW_CreateWindow(const char *driverName, int32_t width,
                           int32_t height, int32_t colorBits,
                           int32_t windowMode)
 {
-#if defined(_WIN32)
-    static const char windowClassName[] =
-        "CoD:United Offensive Multiplayer";
-    (void)driverName;
-
-    if (rendererWin32WindowClassRegistered == qfalse) {
-        WNDCLASSA windowClass = {0};
-        windowClass.lpfnWndProc =
-            rendererWin32WindowProcedure;
-        windowClass.hInstance = (HINSTANCE)sysApplicationInstance;
-        windowClass.hIcon = LoadIconA(
-            (HINSTANCE)sysApplicationInstance,
-            MAKEINTRESOURCEA(R_WINDOW_ICON_RESOURCE));
-        windowClass.hCursor = LoadCursorA(NULL, IDC_ARROW);
-        windowClass.hbrBackground = CreateSolidBrush(0);
-        windowClass.lpszClassName = windowClassName;
-        if (RegisterClassA(&windowClass) == 0) {
-            ri.Error(ERR_FATAL,
-                     "EXE_ERR_COULDNT_REGISTER_WINDOW");
-        }
-        rendererWin32WindowClassRegistered = qtrue;
-        ri.Printf(R_PRINT_ALL, "...registered window class\n");
-    }
-
-    RECT windowRect = {0, 0, width, height};
-    DWORD style;
-    DWORD extendedStyle;
-    int32_t windowX;
-    int32_t windowY;
-
-    if (windowMode != CODUOMP_WINDOW_MODE_WINDOWED) {
-        style = WS_POPUP | WS_VISIBLE | WS_SYSMENU;
-        /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): default fullscreen
-         * is a desktop-sized non-exclusive popup. Desktop fullscreen and
-         * borderless participate in normal desktop z-order so non-activating
-         * OS overlays remain visible. Only exclusive fullscreen is topmost. */
-        extendedStyle = windowMode == CODUOMP_WINDOW_MODE_EXCLUSIVE ? WS_EX_TOPMOST : 0;
-        windowX = coduompRendererDisplayX;
-        windowY = coduompRendererDisplayY;
-    } else {
-        style = WS_VISIBLE | WS_CAPTION | WS_SYSMENU;
-        extendedStyle = 0;
-        AdjustWindowRect(&windowRect, style, FALSE);
-
-        cvar_t *xPosition =
-            ri.Cvar_Get("vid_xpos", "0", CVAR_NONE);
-        cvar_t *yPosition =
-            ri.Cvar_Get("vid_ypos", "0", CVAR_NONE);
-        windowX = coduompRendererDisplayX + xPosition->integer;
-        windowY = coduompRendererDisplayY + yPosition->integer;
-        if (windowX < coduompRendererDisplayX)
-            windowX = coduompRendererDisplayX;
-        if (windowY < coduompRendererDisplayY)
-            windowY = coduompRendererDisplayY;
-    }
-
-    const int32_t windowWidth = windowRect.right - windowRect.left;
-    const int32_t windowHeight = windowRect.bottom - windowRect.top;
-    if (windowMode == CODUOMP_WINDOW_MODE_WINDOWED &&
-        windowWidth < rendererWin32DesktopWidth &&
-        windowHeight < rendererWin32DesktopHeight) {
-        if (windowX + windowWidth >
-            coduompRendererDisplayX + rendererWin32DesktopWidth) {
-            windowX = coduompRendererDisplayX +
-                      rendererWin32DesktopWidth - windowWidth;
-        }
-        if (windowY + windowHeight >
-            coduompRendererDisplayY + rendererWin32DesktopHeight) {
-            windowY = coduompRendererDisplayY +
-                      rendererWin32DesktopHeight - windowHeight;
-        }
-    }
-
-    if (win32MainWindow == NULL) {
-        win32MainWindow = CreateWindowExA(
-            extendedStyle, windowClassName, windowClassName, style,
-            windowX, windowY, windowWidth, windowHeight,
-            NULL, NULL, (HINSTANCE)sysApplicationInstance, NULL);
-        if (win32MainWindow == NULL) {
-            ri.Error(ERR_FATAL,
-                     "EXE_ERR_COULDNT_CREATE_WINDOW");
-        }
-        ShowWindow(win32MainWindow, SW_SHOW);
-        UpdateWindow(win32MainWindow);
-        ri.Printf(R_PRINT_ALL,
-                  "...created window@%d,%d (%dx%d)\n",
-                  windowX, windowY, windowWidth, windowHeight);
-    } else {
-        ri.Printf(
-            R_PRINT_ALL,
-            "...window already present, CreateWindowEx skipped\n");
-        MoveWindow(win32MainWindow, windowX, windowY,
-                   windowWidth, windowHeight, FALSE);
-        ri.Printf(R_PRINT_ALL,
-                  "...moved window to %d,%d (%dx%d)\n",
-                  windowX, windowY, windowWidth, windowHeight);
-    }
-
-    if (GLW_InitDriver(colorBits) == qfalse) {
-        ShowWindow(win32MainWindow, SW_HIDE);
-        DestroyWindow(win32MainWindow);
-        win32MainWindow = NULL;
-        return qfalse;
-    }
-
-    SetForegroundWindow(win32MainWindow);
-    SetFocus(win32MainWindow);
-    if (sysSplashWindow != NULL)
-        ShowWindow((HWND)sysSplashWindow, SW_HIDE);
-    return qtrue;
-#else
     (void)driverName;
     const qboolean created = CoduoSDL_CreateOpenGLWindow(
         width, height, colorBits, r_depthbits->integer,
@@ -651,163 +178,19 @@ qboolean GLW_CreateWindow(const char *driverName, int32_t width,
                   coduomp_sdl_error_compat());
     }
     return created;
-#endif
 }
 
-#if defined(_WIN32)
-/* NOT_FROM_ORIGINAL_SOURCE: reports whether a Windows display device is an
- * independently addressable part of the active desktop. */
-static qboolean coduomp_glw_windows_display_is_available_compat(
-    const DISPLAY_DEVICEA *device)
-{
-    return (device->StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0 &&
-           (device->StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER) == 0;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: counts active Windows desktop display devices in
- * the same order used to interpret r_display. */
-static int32_t coduomp_glw_get_windows_display_count_compat(void)
-{
-    int32_t displayCount = 0;
-
-    for (DWORD index = 0;; ++index) {
-        DISPLAY_DEVICEA device = {0};
-
-        device.cb = sizeof(device);
-        if (EnumDisplayDevicesA(NULL, index, &device, 0) == FALSE)
-            break;
-        if (coduomp_glw_windows_display_is_available_compat(&device) != qfalse)
-            ++displayCount;
-    }
-    return displayCount;
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: resolves an r_display index to the corresponding
- * active Windows display device. */
-static qboolean coduomp_glw_get_windows_display_device_compat(
-    int32_t displayIndex, DISPLAY_DEVICEA *selectedDevice)
-{
-    int32_t availableIndex = 0;
-
-    if (displayIndex < 0)
-        return qfalse;
-    for (DWORD index = 0;; ++index) {
-        DISPLAY_DEVICEA device = {0};
-
-        device.cb = sizeof(device);
-        if (EnumDisplayDevicesA(NULL, index, &device, 0) == FALSE)
-            return qfalse;
-        if (coduomp_glw_windows_display_is_available_compat(&device) == qfalse)
-            continue;
-        if (availableIndex++ != displayIndex)
-            continue;
-        *selectedDevice = device;
-        return qtrue;
-    }
-}
-
-/* NOT_FROM_ORIGINAL_SOURCE: asks Windows for the selected output target's
- * preferred signal mode. Unlike ENUM_CURRENT_SETTINGS, this is independent of
- * desktop scaling and the user's current logical desktop resolution. */
-static qboolean coduomp_glw_get_windows_native_display_mode_compat(
-    int32_t *width, int32_t *height, int32_t *refreshRate)
-{
-    DISPLAY_DEVICEA selectedDevice = {0};
-    UINT32 pathCount = 0;
-    UINT32 modeCount = 0;
-    DISPLAYCONFIG_PATH_INFO *paths = NULL;
-    DISPLAYCONFIG_MODE_INFO *modes = NULL;
-    qboolean found = qfalse;
-
-    if (coduomp_glw_get_windows_display_device_compat(
-            coduompRendererDisplayIndex, &selectedDevice) == qfalse) {
-        return qfalse;
-    }
-
-    if (GetDisplayConfigBufferSizes(
-            QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS ||
-        pathCount == 0 || modeCount == 0) {
-        return qfalse;
-    }
-
-    paths = calloc(pathCount, sizeof(*paths));
-    modes = calloc(modeCount, sizeof(*modes));
-    if (paths == NULL || modes == NULL)
-        goto cleanup;
-    if (QueryDisplayConfig(
-            QDC_ONLY_ACTIVE_PATHS, &pathCount, paths,
-            &modeCount, modes, NULL) != ERROR_SUCCESS) {
-        goto cleanup;
-    }
-
-    for (UINT32 index = 0; index < pathCount; ++index) {
-        DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName = {0};
-        DISPLAYCONFIG_TARGET_PREFERRED_MODE preferredMode = {0};
-        char sourceDeviceName[CCHDEVICENAME];
-
-        sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
-        sourceName.header.size = sizeof(sourceName);
-        sourceName.header.adapterId = paths[index].sourceInfo.adapterId;
-        sourceName.header.id = paths[index].sourceInfo.id;
-        if (DisplayConfigGetDeviceInfo(&sourceName.header) != ERROR_SUCCESS)
-            continue;
-        if (WideCharToMultiByte(
-                CP_ACP, 0, sourceName.viewGdiDeviceName, -1,
-                sourceDeviceName, sizeof(sourceDeviceName),
-                NULL, NULL) == 0) {
-            continue;
-        }
-        if (strcmp(selectedDevice.DeviceName, sourceDeviceName) != 0) {
-            continue;
-        }
-
-        preferredMode.header.type =
-            DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_PREFERRED_MODE;
-        preferredMode.header.size = sizeof(preferredMode);
-        preferredMode.header.adapterId = paths[index].targetInfo.adapterId;
-        preferredMode.header.id = paths[index].targetInfo.id;
-        if (DisplayConfigGetDeviceInfo(&preferredMode.header) != ERROR_SUCCESS ||
-            preferredMode.width == 0 || preferredMode.height == 0) {
-            continue;
-        }
-
-        *width = (int32_t)preferredMode.width;
-        *height = (int32_t)preferredMode.height;
-        const DISPLAYCONFIG_RATIONAL verticalFrequency =
-            preferredMode.targetMode.targetVideoSignalInfo.vSyncFreq;
-        *refreshRate = verticalFrequency.Denominator != 0
-            ? (int32_t)((verticalFrequency.Numerator +
-                         verticalFrequency.Denominator / 2) /
-                        verticalFrequency.Denominator)
-            : 0;
-        found = qtrue;
-        break;
-    }
-
-cleanup:
-    free(modes);
-    free(paths);
-    return found;
-}
-#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: resolves the selected output's automatic
  * hardware-sized mode before either platform enters fixed-mode setup. */
 static qboolean coduomp_glw_get_native_display_mode_compat(
     int32_t *width, int32_t *height, float *aspect, int32_t *refreshRate)
 {
-#if defined(_WIN32)
-    if (coduomp_glw_get_windows_native_display_mode_compat(
-            width, height, refreshRate) == qfalse) {
-        return qfalse;
-    }
-#else
     if (coduomp_sdl_get_native_display_mode_compat(
             coduompRendererDisplayIndex,
             width, height, refreshRate) == qfalse) {
         return qfalse;
     }
-#endif
     *aspect = (float)*width / (float)*height;
     return qtrue;
 }
@@ -817,39 +200,8 @@ static qboolean coduomp_glw_get_native_display_mode_compat(
 static qboolean coduomp_glw_display_mode_available_compat(int32_t width,
                                                           int32_t height)
 {
-#if defined(_WIN32)
-    DISPLAY_DEVICEA selectedDevice = {0};
-    int32_t nativeWidth;
-    int32_t nativeHeight;
-    int32_t nativeRefreshRate;
-
-    if (coduomp_glw_get_windows_display_device_compat(
-            coduompRendererDisplayIndex, &selectedDevice) == qfalse) {
-        return qfalse;
-    }
-    if (coduomp_glw_get_windows_native_display_mode_compat(
-            &nativeWidth, &nativeHeight,
-            &nativeRefreshRate) != qfalse &&
-        (width > nativeWidth || height > nativeHeight)) {
-        return qfalse;
-    }
-    for (DWORD index = 0;; ++index) {
-        DEVMODEA mode = {0};
-
-        mode.dmSize = sizeof(mode);
-        if (EnumDisplaySettingsA(
-                selectedDevice.DeviceName, index, &mode) == FALSE) {
-            return qfalse;
-        }
-        if ((int32_t)mode.dmPelsWidth == width &&
-            (int32_t)mode.dmPelsHeight == height) {
-            return qtrue;
-        }
-    }
-#else
     return coduomp_sdl_display_mode_available_compat(
         coduompRendererDisplayIndex, width, height);
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f4780..0x004f4806.
@@ -891,20 +243,9 @@ renderer_mode_set_result_t GLW_SetMode(
     const char *driverName, int32_t mode, int32_t colorBits,
     int32_t windowMode)
 {
-#if defined(_WIN32)
-    /* NOT_FROM_ORIGINAL_SOURCE: restore the previous device before querying
-     * a newly selected monitor or attempting another mode after a failure. */
-    if (coduomp_glw_restore_display_compat() == qfalse)
-        return R_MODE_SET_FULLSCREEN_UNAVAILABLE;
-    const int32_t displayCount =
-        coduomp_glw_get_windows_display_count_compat();
-    DISPLAY_DEVICEA windowsDisplayDevice = {0};
-    DEVMODEA windowsDesktopMode = {0};
-#else
     const int32_t displayCount =
         coduomp_sdl_get_display_count_compat();
     coduomp_sdl_display_info_t displayInfo;
-#endif
     coduompRendererDisplayIndex = r_display->integer;
     if (coduompRendererDisplayIndex < 0 ||
         coduompRendererDisplayIndex >= displayCount) {
@@ -916,43 +257,6 @@ renderer_mode_set_result_t GLW_SetMode(
     ri.Cvar_Set("r_displayCount", va("%d", displayCount));
     ri.Cvar_Set("r_currentDisplayIndex",
                 va("%d", coduompRendererDisplayIndex));
-#if defined(_WIN32)
-    windowsDesktopMode.dmSize = sizeof(windowsDesktopMode);
-    if (displayCount <= 0 ||
-        coduomp_glw_get_windows_display_device_compat(
-            coduompRendererDisplayIndex, &windowsDisplayDevice) == qfalse ||
-        EnumDisplaySettingsA(
-            windowsDisplayDevice.DeviceName, ENUM_CURRENT_SETTINGS,
-            &windowsDesktopMode) == FALSE) {
-        ri.Printf(R_PRINT_WARNING,
-                  "WARNING: could not query display %d\n",
-                  coduompRendererDisplayIndex + 1);
-        return R_MODE_SET_INVALID;
-    }
-    coduompRendererDisplayX = windowsDesktopMode.dmPosition.x;
-    coduompRendererDisplayY = windowsDesktopMode.dmPosition.y;
-    rendererWin32DesktopColorBits =
-        (int32_t)windowsDesktopMode.dmBitsPerPel;
-    rendererWin32DesktopWidth =
-        (int32_t)windowsDesktopMode.dmPelsWidth;
-    rendererWin32DesktopHeight =
-        (int32_t)windowsDesktopMode.dmPelsHeight;
-    ri.Cvar_Set("r_currentDisplayLogicalWidth",
-                va("%d", rendererWin32DesktopWidth));
-    ri.Cvar_Set("r_currentDisplayLogicalHeight",
-                va("%d", rendererWin32DesktopHeight));
-    ri.Cvar_Set("r_currentDisplayBackingWidth",
-                va("%d", rendererWin32DesktopWidth));
-    ri.Cvar_Set("r_currentDisplayBackingHeight",
-                va("%d", rendererWin32DesktopHeight));
-    ri.Cvar_Set("r_currentDisplayBuiltin", "0");
-    ri.Printf(R_PRINT_ALL,
-              "...display %d/%d: desktop %dx%d at %d,%d (%s)\n",
-              coduompRendererDisplayIndex + 1, displayCount,
-              rendererWin32DesktopWidth, rendererWin32DesktopHeight,
-              coduompRendererDisplayX, coduompRendererDisplayY,
-              windowsDisplayDevice.DeviceName);
-#else
     if (coduomp_sdl_get_display_info_compat(
             coduompRendererDisplayIndex, &displayInfo) != qfalse) {
         ri.Cvar_Set("r_currentDisplayLogicalWidth",
@@ -980,7 +284,6 @@ renderer_mode_set_result_t GLW_SetMode(
         ri.Cvar_Set("r_currentDisplayBackingHeight", "0");
         ri.Cvar_Set("r_currentDisplayBuiltin", "0");
     }
-#endif
     int32_t currentDisplayWidth = 0;
     int32_t currentDisplayHeight = 0;
     int32_t currentDisplayRefreshRate = 0;
@@ -1018,125 +321,6 @@ renderer_mode_set_result_t GLW_SetMode(
         glConfig.vidHeight = currentDisplayHeight;
         glConfig.windowAspect = currentDisplayAspect;
     }
-#if defined(_WIN32)
-    if (mode != R_CURRENT_DISPLAY_VIDEO_MODE) {
-        ri.Printf(R_PRINT_ALL, "...setting mode %d:", mode);
-        if (R_GetModeInfo(&glConfig.vidWidth, &glConfig.vidHeight,
-                          &glConfig.windowAspect, mode) == qfalse) {
-            ri.Printf(R_PRINT_ALL, " invalid mode\n");
-            return R_MODE_SET_INVALID;
-        }
-    }
-    if (currentDisplayModeAvailable == qfalse) {
-        currentDisplayWidth = glConfig.vidWidth;
-        currentDisplayHeight = glConfig.vidHeight;
-        currentDisplayAspect = glConfig.windowAspect;
-        currentDisplayRefreshRate = 0;
-    }
-
-    const char *modeKind;
-    if (windowMode == CODUOMP_WINDOW_MODE_EXCLUSIVE) {
-        modeKind = va("exclusive FS (%i Hz requested)", r_displayRefresh->integer);
-    } else if (windowMode == CODUOMP_WINDOW_MODE_FULLSCREEN) {
-        if (r_displayRefresh->integer != 0) {
-            modeKind = va("FS (%i Hz)", r_displayRefresh->integer);
-        } else {
-            modeKind = "FS";
-        }
-    } else if (windowMode == CODUOMP_WINDOW_MODE_BORDERLESS) {
-        modeKind = "B";
-    } else {
-        modeKind = "W";
-    }
-    ri.Printf(R_PRINT_ALL, " %d %d %s\n",
-              glConfig.vidWidth, glConfig.vidHeight, modeKind);
-
-    if (windowMode == CODUOMP_WINDOW_MODE_WINDOWED) {
-        if (mode != R_CURRENT_DISPLAY_VIDEO_MODE) {
-            while (rendererWin32DesktopWidth < glConfig.vidWidth ||
-                   rendererWin32DesktopHeight < glConfig.vidHeight) {
-                --mode;
-                (void)R_GetModeInfo(
-                    &glConfig.vidWidth, &glConfig.vidHeight,
-                    &glConfig.windowAspect, mode);
-            }
-            ri.Cvar_Set("r_mode", va("%d", mode));
-        }
-    }
-
-    if ((rendererWin32DesktopColorBits <
-             R_MIN_ACCEPTABLE_COLOR_BITS ||
-         rendererWin32DesktopColorBits ==
-             R_DESKTOP_COLOR_WARNING_BITS) &&
-        (colorBits == 0 ||
-         (windowMode != CODUOMP_WINDOW_MODE_FULLSCREEN &&
-          colorBits >= R_MIN_ACCEPTABLE_COLOR_BITS))) {
-        const int32_t choice = MessageBoxA(
-            NULL,
-            Sys_LocalizeString("WIN_COLORDEPTH_WARN_BODY"),
-            Sys_LocalizeString("WIN_COLORDEPTH_WARN_TITLE"),
-            MB_OKCANCEL | MB_ICONWARNING);
-        if (choice != IDOK)
-            return R_MODE_SET_INVALID;
-    }
-
-    int32_t outputWindowWidth = glConfig.vidWidth;
-    int32_t outputWindowHeight = glConfig.vidHeight;
-    if (windowMode == CODUOMP_WINDOW_MODE_FULLSCREEN || windowMode == CODUOMP_WINDOW_MODE_BORDERLESS) {
-        outputWindowWidth = rendererWin32DesktopWidth;
-        outputWindowHeight = rendererWin32DesktopHeight;
-    } else if (stretchExclusiveOutput != qfalse) {
-        outputWindowWidth = currentDisplayModeAvailable != qfalse ? currentDisplayWidth : rendererWin32DesktopWidth;
-        outputWindowHeight = currentDisplayModeAvailable != qfalse ? currentDisplayHeight : rendererWin32DesktopHeight;
-    }
-
-    /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): desktop fullscreen
-     * keeps its selected render surface and composites it into a popup
-     * covering the selected desktop. Exclusive fullscreen instead changes
-     * only that display and retains its desktop settings for restoration. */
-    if (windowMode == CODUOMP_WINDOW_MODE_EXCLUSIVE) {
-        memcpy(coduompRendererExclusiveDevice, windowsDisplayDevice.DeviceName,
-               sizeof(coduompRendererExclusiveDevice));
-        coduompRendererExclusiveDesktopMode = windowsDesktopMode;
-        coduompRendererExclusiveMode = windowsDesktopMode;
-        coduompRendererExclusiveMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
-        coduompRendererExclusiveMode.dmPelsWidth = (DWORD)outputWindowWidth;
-        coduompRendererExclusiveMode.dmPelsHeight = (DWORD)outputWindowHeight;
-        if (r_displayRefresh->integer > 0) {
-            coduompRendererExclusiveMode.dmFields |= DM_DISPLAYFREQUENCY;
-            coduompRendererExclusiveMode.dmDisplayFrequency = (DWORD)r_displayRefresh->integer;
-        }
-        rendererWin32FullscreenModeSet = qtrue;
-        if (coduomp_glw_set_exclusive_active_compat(qtrue) == qfalse) {
-            rendererWin32FullscreenModeSet = qfalse;
-            return R_MODE_SET_FULLSCREEN_UNAVAILABLE;
-        }
-    }
-
-    if (GLW_CreateWindow(
-            driverName, outputWindowWidth, outputWindowHeight,
-            colorBits, windowMode) == qfalse) {
-        (void)coduomp_glw_restore_display_compat();
-        return R_MODE_SET_INVALID;
-    }
-
-    DEVMODEA currentMode = {0};
-    currentMode.dmSize = sizeof(currentMode);
-    if (EnumDisplaySettingsA(
-            windowsDisplayDevice.DeviceName,
-            ENUM_CURRENT_SETTINGS, &currentMode) != FALSE) {
-        glConfig.displayFrequency =
-            (int32_t)currentMode.dmDisplayFrequency;
-    }
-    coduomp_configure_output_presentation_compat(
-        glConfig.vidWidth, glConfig.vidHeight,
-        outputWindowWidth, outputWindowHeight,
-        currentDisplayWidth, currentDisplayHeight,
-        windowMode != CODUOMP_WINDOW_MODE_WINDOWED ? qtrue : qfalse);
-    glConfig.isFullscreen =
-        windowMode != CODUOMP_WINDOW_MODE_WINDOWED ? qtrue : qfalse;
-    return R_MODE_SET_SUCCESS;
-#else
     int32_t refreshRate;
 
     if (mode != R_CURRENT_DISPLAY_VIDEO_MODE) {
@@ -1217,7 +401,6 @@ renderer_mode_set_result_t GLW_SetMode(
     glConfig.isFullscreen =
         windowMode != CODUOMP_WINDOW_MODE_WINDOWED ? qtrue : qfalse;
     return R_MODE_SET_SUCCESS;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f4c50..0x004f4cea.
@@ -1667,18 +850,6 @@ void GLimp_Extensions(void)
                   "...GL_NV_register_combiners not found\n");
     }
 
-#if defined(_WIN32)
-    GLIMP_LOAD_WGL(renderer_wgl_swap_interval_ext_func_t,
-                   SwapIntervalEXT, "wglSwapIntervalEXT");
-    if (qwglSwapIntervalEXT != NULL) {
-        ri.Printf(R_PRINT_ALL,
-                  "...using WGL_EXT_swap_control\n");
-        r_swapInterval->modified = qtrue;
-    } else {
-        ri.Printf(R_PRINT_ALL,
-                  "...WGL_EXT_swap_control not found\n");
-    }
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: SDL applies the native context swap interval
      * directly. Do not ask GLX for a WGL symbol: some implementations return
      * a non-null dispatch stub for unsupported names. */
@@ -1686,7 +857,6 @@ void GLimp_Extensions(void)
     qwglSwapIntervalEXT = NULL;
     ri.Printf(R_PRINT_ALL, "...using native swap control\n");
     r_swapInterval->modified = qtrue;
-#endif
 
     if (GLW_CheckOpenGLVersion(1, 3) != qfalse) {
         GLIMP_LOAD_GL(renderer_gl_active_texture_arb_func_t,
@@ -2108,25 +1278,8 @@ void GLimp_Extensions(void)
  * versions are NT 5.0 or newer, or the Win9x line beginning with 4.10. */
 qboolean GLW_CheckOSVersion(void)
 {
-#if defined(_WIN32)
-    OSVERSIONINFOA version = {0};
-    version.dwOSVersionInfoSize = sizeof(version);
-    if (GetVersionExA(&version) == FALSE) {
-        ri.Printf(
-            R_PRINT_ALL,
-            "GLW_CheckOSVersion() - GetVersionEx failed\n");
-        return qfalse;
-    }
-
-    if (version.dwMajorVersion >= 5)
-        return qtrue;
-    return version.dwMajorVersion == 4 &&
-           version.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS &&
-           version.dwMinorVersion >= 10;
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: this probe describes the Win32 host only. */
     return qtrue;
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x004f65d0..0x004f66b9.
@@ -2146,24 +1299,18 @@ qboolean GLW_StartDriverAndSetMode(const char *driverName)
             (char)coduo_crt_tolower((unsigned char)*character);
     }
 
-#if defined(_WIN32)
-    if (QGL_Init(normalizedDriver) == qfalse)
-        return qfalse;
-#endif
     const renderer_mode_set_result_t modeResult =
         GLW_SetMode(driverName, r_mode->integer,
                     r_colorbits->integer,
                     r_fullscreen->integer);
     switch (modeResult) {
     case R_MODE_SET_SUCCESS:
-#if !defined(_WIN32)
         if (QGL_Init(normalizedDriver) == qfalse ||
             GLW_InitDriver(r_colorbits->integer) == qfalse) {
             QGL_Shutdown();
             CoduoSDL_DestroyOpenGLWindow();
             return qfalse;
         }
-#endif
         return qtrue;
     case R_MODE_SET_FULLSCREEN_UNAVAILABLE:
         ri.Printf(
@@ -2178,11 +1325,7 @@ qboolean GLW_StartDriverAndSetMode(const char *driverName)
         break;
     }
 
-#if defined(_WIN32)
-    QGL_Shutdown();
-#else
     CoduoSDL_DestroyOpenGLWindow();
-#endif
     return qfalse;
 }
 
@@ -2319,15 +1462,6 @@ void GLW_ApplyRendererAutoConfig(void)
     for (int32_t cvarIndex = 0; cvarIndex < cvarCount; ++cvarIndex) {
         cvar_t *const cvar = cvars[cvarIndex];
         const char *configuredValue = values[cvarIndex];
-#if defined(__APPLE__) && defined(__aarch64__)
-        /* PERFORMANCE_PATCH (NOT_FROM_ORIGINAL_SOURCE): retail renderer
-         * profiles predate Apple's Metal-backed OpenGL implementation. Keep
-         * auto-configuration on its paired streamed/interleaved upload path. */
-        if (cvar == r_vbo_stream_draw)
-            configuredValue = CODUOMP_VBO_STREAM_DRAW_DEFAULT;
-        else if (cvar == r_vbo_interleave)
-            configuredValue = CODUOMP_VBO_INTERLEAVE_DEFAULT;
-#endif
         ri.Cvar_Set(cvar->name, configuredValue);
         (void)ri.Cvar_Get(cvar->name, cvar->resetString, cvar->flags);
     }
@@ -2347,25 +1481,8 @@ void GLimp_Init(void)
     if (GLW_CheckOSVersion() == qfalse)
         ri.Error(ERR_FATAL, "EXE_ERR_BAD_WINDOWS_VER");
 
-#if defined(_WIN32)
-    cvar_t *hostValue = ri.Cvar_Get(
-        "win_hinstance", "", CVAR_NONE);
-    uintptr_t hostAddress = 0;
-    (void)sscanf(hostValue->string, "%" SCNuPTR, &hostAddress);
-    sysApplicationInstance = (void *)hostAddress;
-
-    hostValue = ri.Cvar_Get("win_wndproc", "", CVAR_NONE);
-    hostAddress = 0;
-    (void)sscanf(hostValue->string, "%" SCNuPTR, &hostAddress);
-    _Static_assert(
-        sizeof(rendererWin32WindowProcedure) == sizeof(hostAddress),
-        "Win32 window procedure must fit in its native address carrier");
-    memcpy(&rendererWin32WindowProcedure, &hostAddress,
-           sizeof(rendererWin32WindowProcedure));
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native non-Windows window creation does not
      * use the Win32 instance/window-procedure cvar handoff. */
-#endif
 
     r_allowSoftwareGL = ri.Cvar_Get(
         "r_allowSoftwareGL", "0", CVAR_LATCH);
@@ -2380,20 +1497,12 @@ void GLimp_Init(void)
     glConfig.extensionsString =
         (const char *)qglGetString(GL_EXTENSIONS);
 
-#if defined(_WIN32)
-    CODUOMP_WGL_LOAD_SYMBOL(rendererWglGetExtensionsStringEXTDriver, "wglGetExtensionsStringEXT");
-    qwglGetExtensionsStringEXT =
-        rendererWglGetExtensionsStringEXTDriver;
-    if (qwglGetExtensionsStringEXT != NULL)
-        glConfig.wglExtensionsString = qwglGetExtensionsStringEXT();
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: WGL has no extension string on the native SDL
      * path. GLX may return a callable-looking stub for this unsupported WGL
      * name, so never resolve or invoke it outside Windows. */
     rendererWglGetExtensionsStringEXTDriver = NULL;
     qwglGetExtensionsStringEXT = NULL;
     glConfig.wglExtensionsString = "";
-#endif
 
     const char *optimizeValue = "1";
     if (strstr(glConfig.vendorString, "Matrox") != NULL)
@@ -2443,13 +1552,8 @@ void GLimp_Init(void)
  * context object, device context, and window in the original order. */
 void GLimp_Shutdown(void)
 {
-#if defined(_WIN32)
-    if (qwglMakeCurrent == NULL)
-        return;
-#else
     if (CoduoSDL_HasOpenGLWindow() == qfalse)
         return;
-#endif
 
     ri.Printf(R_PRINT_ALL, "Shutting down OpenGL subsystem\n");
     coduomp_flare_query_shutdown();
@@ -2459,61 +1563,16 @@ void GLimp_Shutdown(void)
     GLimp_RestoreGamma();
     coduomp_output_gamma_shutdown_compat();
 
-#if defined(_WIN32)
-    ri.Printf(
-        R_PRINT_ALL,
-        "...wglMakeCurrent( NULL, NULL ): %s\n",
-        qwglMakeCurrent(NULL, NULL) != 0 ? "success" : "failed");
-
-    if (rendererWin32RenderContext != NULL) {
-        ri.Printf(
-            R_PRINT_ALL, "...deleting GL context: %s\n",
-            qwglDeleteContext(rendererWin32RenderContext) != 0
-                ? "success" : "failed");
-        rendererWin32RenderContext = NULL;
-    }
-
-    if (rendererWin32DeviceContext != NULL) {
-        ri.Printf(
-            R_PRINT_ALL, "...releasing DC: %s\n",
-            ReleaseDC(win32MainWindow,
-                      (HDC)rendererWin32DeviceContext) != 0
-                ? "success" : "failed");
-        rendererWin32DeviceContext = NULL;
-    }
-
-    if (win32MainWindow != NULL) {
-        ri.Printf(R_PRINT_ALL, "...destroying window\n");
-        ShowWindow(win32MainWindow, SW_HIDE);
-        DestroyWindow(win32MainWindow);
-        win32MainWindow = NULL;
-        rendererWin32PixelFormatSet = qfalse;
-
-        if (dedicated->integer == 0 && sysSplashWindow != NULL) {
-            ShowWindow((HWND)sysSplashWindow, SW_SHOW);
-            UpdateWindow((HWND)sysSplashWindow);
-        }
-    }
-#else
     CoduoSDL_SetRelativeMouse(qfalse);
-#endif
 
     if (rendererGlLogFile != NULL) {
         fclose(rendererGlLogFile);
         rendererGlLogFile = NULL;
     }
 
-#if defined(_WIN32)
-    if (rendererWin32FullscreenModeSet != qfalse) {
-        ri.Printf(R_PRINT_ALL, "...resetting display\n");
-        (void)coduomp_glw_restore_display_compat();
-    }
-#endif
 
     QGL_Shutdown();
-#if !defined(_WIN32)
     CoduoSDL_DestroyOpenGLWindow();
-#endif
     memset(&glConfig, 0, sizeof(glConfig));
     memset(&glState, 0, sizeof(glState));
 }
@@ -2527,15 +1586,8 @@ void GLimp_EndFrame(void)
 {
     if (r_swapInterval->modified != qfalse) {
         r_swapInterval->modified = qfalse;
-#if defined(_WIN32)
-        if (glConfig.stereoEnabled == qfalse &&
-            qwglSwapIntervalEXT != NULL) {
-            qwglSwapIntervalEXT(r_swapInterval->integer);
-        }
-#else
         if (glConfig.stereoEnabled == qfalse)
             CoduoSDL_SetSwapInterval(r_swapInterval->integer);
-#endif
     }
 
     if (Q_stricmp(r_drawBuffer->string, "GL_FRONT") != 0) {
@@ -2552,11 +1604,7 @@ void GLimp_EndFrame(void)
 #if defined(CODUOMP_RENDERER_GPU_PROFILE)
         coduomp_gpu_profile_end(gpuProfileStarted);
 #endif
-#if defined(_WIN32)
-        SwapBuffers((HDC)rendererWin32DeviceContext);
-#else
         CoduoSDL_SwapWindow();
-#endif
     }
 
     const int32_t logLevel = r_logFile->integer;

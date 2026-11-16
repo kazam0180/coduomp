@@ -293,8 +293,6 @@ typedef char script_vm_callback_slot_size[
 
 #if defined(__cplusplus)
 #define SCRIPT_TYPES_ALIGNOF(type_) alignof(type_)
-#elif defined(_MSC_VER)
-#define SCRIPT_TYPES_ALIGNOF(type_) __alignof(type_)
 #elif defined(__GNUC__) || defined(__clang__)
 /* Both game-module makefiles intentionally use C99.  GCC and Clang expose
  * their alignment operator in that language mode without the C11-pedantic

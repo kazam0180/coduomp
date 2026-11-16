@@ -240,9 +240,7 @@ struct XModel_s {
 };
 
 #if UINTPTR_MAX == UINT32_MAX
-#if defined(_MSC_VER)
-#define XMODEL_TYPES_ALIGNOF(type) __alignof(type)
-#elif defined(__cplusplus)
+#if   defined(__cplusplus)
 #define XMODEL_TYPES_ALIGNOF(type) alignof(type)
 #else
 #define XMODEL_TYPES_ALIGNOF(type) __alignof__(type)

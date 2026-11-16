@@ -17,7 +17,7 @@ extern "C" {
 #define CODUO_CRT_RAND_INITIAL_SEED UINT32_C(1)
 
 /* Keep the Windows provider bound to its owning image on ELF hosts too. */
-#if defined(__GNUC__) && !defined(_WIN32)
+#if defined(__GNUC__)
 #define CODUO_CRT_RANDOM_LOCAL __attribute__((visibility("hidden")))
 #else
 #define CODUO_CRT_RANDOM_LOCAL

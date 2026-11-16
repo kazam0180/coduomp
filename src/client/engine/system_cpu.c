@@ -1,6 +1,4 @@
-#if !defined(_WIN32) && !defined(__APPLE__)
 #define _POSIX_C_SOURCE 200809L
-#endif
 
 #include "compat/coduo_compiler.h"
 #include "q_shared.h"
@@ -13,20 +11,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#if defined(_WIN32)
-#include <windows.h>
-#elif defined(__APPLE__)
-#include <mach/mach_time.h>
-#include <sys/sysctl.h>
-#include <sys/types.h>
-#else
 #include <time.h>
 #include <unistd.h>
-#endif
 
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-#include <intrin.h>
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
 #include <cpuid.h>
 #include <x86intrin.h>
 #endif
@@ -58,15 +46,7 @@ static const double sysRoundHalfBias = 0.49999999906867743;
  * Role name: the original Windows-only CPUID leaf wrapper. */
 static void Sys_ReadCpuid(uint32_t leaf, uint32_t registers[4])
 {
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-    int values[4];
-
-    __cpuid(values, (int)leaf);
-    registers[0] = (uint32_t)values[0];
-    registers[1] = (uint32_t)values[1];
-    registers[2] = (uint32_t)values[2];
-    registers[3] = (uint32_t)values[3];
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
     __cpuid_count(
         leaf, 0, registers[0], registers[1],
         registers[2], registers[3]);
@@ -86,9 +66,7 @@ static void Sys_ReadCpuid(uint32_t leaf, uint32_t registers[4])
  * CPUID; non-x86 targets do not use this Windows CPU classifier. */
 static qboolean Sys_CpuidSupported(void)
 {
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-    return qtrue;
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
     return __get_cpuid_max(0, NULL) != 0 ? qtrue : qfalse;
 #else
     return qfalse;
@@ -194,49 +172,7 @@ int32_t Sys_RoundPositiveFloatToInt(float value)
  * Sleep/QPC/RDTSC order and the original 250 ms observation interval. */
 double Sys_GetCpuFrequencyMHz(void)
 {
-#if defined(_WIN32) && \
-    (defined(_M_IX86) || defined(_M_X64) || \
-     defined(__i386__) || defined(__x86_64__))
-    LARGE_INTEGER performanceFrequency;
-    LARGE_INTEGER counter;
-    LARGE_INTEGER counterStart;
-    LARGE_INTEGER counterEnd;
-    uint64_t cyclesStart;
-    uint64_t cyclesEnd;
-
-    Sleep(0);
-    performanceFrequency.QuadPart = 0;
-    counter.QuadPart = 0;
-    counterStart.QuadPart = 0;
-    counterEnd.QuadPart = 0;
-    QueryPerformanceFrequency(&performanceFrequency);
-    QueryPerformanceCounter(&counter);
-    cyclesStart = __rdtsc();
-    QueryPerformanceCounter(&counterStart);
-    Sleep(SYS_CPU_MEASUREMENT_MSEC);
-    cyclesEnd = __rdtsc();
-    QueryPerformanceCounter(&counterEnd);
-
-    return (double)((cyclesEnd - cyclesStart) *
-                    (uint64_t)performanceFrequency.QuadPart) *
-           0.000001 /
-           (double)(counterEnd.QuadPart - counterStart.QuadPart);
-#elif defined(__APPLE__)
-    uint64_t frequencyHz = 0;
-    size_t frequencySize = sizeof(frequencyHz);
-
-    /* NOT_FROM_ORIGINAL_SOURCE: native replacement for the Windows-only
-     * RDTSC/QPC measurement on Apple targets, including Apple Silicon. */
-    if (sysctlbyname("hw.cpufrequency_max", &frequencyHz, &frequencySize,
-                     NULL, 0) != 0) {
-        frequencySize = sizeof(frequencyHz);
-        if (sysctlbyname("hw.cpufrequency", &frequencyHz, &frequencySize,
-                         NULL, 0) != 0) {
-            return 0.0;
-        }
-    }
-    return (double)frequencyHz * 0.000001;
-#elif defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__x86_64__)
     struct timespec delay = {
         0, SYS_CPU_MEASUREMENT_MSEC * 1000000L
     };
@@ -274,51 +210,6 @@ int32_t Sys_GetPhysicalMemoryMB(void)
 {
     uint64_t totalPhysicalBytes;
 
-#if defined(_WIN32)
-    typedef CODUO_FUNCTION_POINTER_TYPE(GlobalMemoryStatusEx) global_memory_status_ex_t;
-    HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
-    global_memory_status_ex_t getMemoryStatusEx = NULL;
-    uint64_t availableVirtualBytes;
-
-    if (kernel32 != NULL) {
-        coduomp_library_symbol(kernel32, "GlobalMemoryStatusEx", &getMemoryStatusEx, sizeof(getMemoryStatusEx));
-    }
-
-    if (getMemoryStatusEx != NULL) {
-        MEMORYSTATUSEX status;
-        status.dwLength = sizeof(status);
-        getMemoryStatusEx(&status);
-        availableVirtualBytes = status.ullAvailVirtual;
-        totalPhysicalBytes = status.ullTotalPhys;
-    } else {
-        MEMORYSTATUS status;
-        status.dwLength = sizeof(status);
-        GlobalMemoryStatus(&status);
-        availableVirtualBytes = status.dwAvailVirtual;
-        totalPhysicalBytes = status.dwTotalPhys;
-    }
-
-    if (availableVirtualBytes < SYS_MIN_AVAILABLE_VIRTUAL_MEMORY) {
-        /* 0x0046909d..0x004690bd and 0x004691ab..0x004691cb resolve
-         * the caption first, then the dialog body. */
-        const char *title = Sys_LocalizeString("WIN_LOW_MEMORY_TITLE");
-        const char *body = Sys_LocalizeString("WIN_LOW_MEMORY_BODY");
-        if (MessageBoxA(NULL, body, title, SYS_LOW_MEMORY_DIALOG_FLAGS) !=
-            SYS_DIALOG_RESULT_YES) {
-            Sys_DeleteProcessLockFile();
-            exit(0);
-        }
-    }
-#elif defined(__APPLE__)
-    size_t memorySize = sizeof(totalPhysicalBytes);
-
-    /* NOT_FROM_ORIGINAL_SOURCE: native physical-memory query replacing the
-     * Windows GlobalMemoryStatusEx/GlobalMemoryStatus compatibility path. */
-    if (sysctlbyname("hw.memsize", &totalPhysicalBytes, &memorySize,
-                     NULL, 0) != 0) {
-        totalPhysicalBytes = 0;
-    }
-#else
     long pageCount;
     long pageSize;
 
@@ -330,7 +221,6 @@ int32_t Sys_GetPhysicalMemoryMB(void)
         totalPhysicalBytes = 0;
     else
         totalPhysicalBytes = (uint64_t)pageCount * (uint64_t)pageSize;
-#endif
 
     const float physicalMegabytes =
         (float)totalPhysicalBytes * (1.0f / SYS_BYTES_PER_MEGABYTE);
@@ -365,19 +255,7 @@ qboolean Sys_LowPhysicalMemory(void)
  * renderer selection of a native SIMD implementation is handled separately. */
 qboolean Sys_DetectSSESupport(void)
 {
-#if defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))
-    int registers[4];
-
-    __cpuid(registers, 1);
-    if ((registers[3] & (1 << 25)) == 0)
-        return qfalse;
-#if defined(_M_IX86)
-    __asm {
-        xorps xmm0, xmm0
-    }
-#endif
-    return qtrue;
-#elif defined(__i386__) || defined(__x86_64__)
+#if   defined(__i386__) || defined(__x86_64__)
     unsigned int eax;
     unsigned int ebx;
     unsigned int ecx;

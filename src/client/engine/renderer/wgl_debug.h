@@ -11,17 +11,6 @@
 /* Use SDK types on Windows and platform-neutral carriers for the inactive WGL
  * slots elsewhere. They remain real native pointers on 64-bit hosts; no Windows
  * handle is narrowed to a PE32 word in maintained source. */
-#if defined(_WIN32)
-typedef HDC renderer_wgl_device_context_t;
-typedef HGLRC renderer_wgl_render_context_t;
-typedef HPBUFFERARB renderer_wgl_pbuffer_t;
-typedef GLYPHMETRICSFLOAT renderer_wgl_glyph_metrics_float_t;
-typedef LAYERPLANEDESCRIPTOR renderer_wgl_layer_plane_descriptor_t;
-typedef PROC renderer_wgl_proc_t;
-typedef WNDPROC renderer_win32_window_proc_t;
-typedef DWORD renderer_wgl_dword_t;
-typedef COLORREF renderer_wgl_color_t;
-#else
 typedef uint32_t renderer_wgl_dword_t;
 typedef uint32_t renderer_wgl_color_t;
 typedef struct renderer_wgl_device_context_s *renderer_wgl_device_context_t;
@@ -36,14 +25,10 @@ typedef intptr_t
     (RENDERER_GL_API_CALL *renderer_win32_window_proc_t)(
         void *window, uint32_t message, uintptr_t wParam, intptr_t lParam);
 
-#endif
 
 /* The Windows SDK owns PIXELFORMATDESCRIPTOR. The non-Windows spelling keeps
  * the unused WGL setup path compileable. This operating-system ABI record has
  * the same 40-byte layout on 32- and 64-bit Windows. */
-#if defined(_WIN32)
-typedef PIXELFORMATDESCRIPTOR renderer_pixel_format_descriptor_t;
-#else
 typedef struct renderer_pixel_format_descriptor_s {
     uint16_t nSize;
     uint16_t nVersion;
@@ -72,7 +57,6 @@ typedef struct renderer_pixel_format_descriptor_s {
     uint32_t dwVisibleMask;
     uint32_t dwDamageMask;
 } renderer_pixel_format_descriptor_t;
-#endif
 
 _Static_assert(_Alignof(renderer_pixel_format_descriptor_t) == 4,
                "pixel-format descriptor alignment changed");
@@ -185,37 +169,6 @@ qboolean GLW_TryFallbackMode(int32_t mode,
 qboolean GLW_LoadOpenGL(void);
 void GLW_ApplyRendererAutoConfig(void);
 
-#if defined(_WIN32)
-typedef CODUO_FUNCTION_POINTER_TYPE(wglCopyContext) renderer_wgl_copy_context_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglCreateContext) renderer_wgl_create_context_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglCreateLayerContext) renderer_wgl_create_layer_context_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglDeleteContext) renderer_wgl_delete_context_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglGetCurrentContext) renderer_wgl_get_current_context_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglGetCurrentDC) renderer_wgl_get_current_dc_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglGetProcAddress) renderer_wgl_get_proc_address_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglMakeCurrent) renderer_wgl_make_current_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglShareLists) renderer_wgl_share_lists_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglUseFontBitmapsA) renderer_wgl_use_font_bitmaps_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglUseFontOutlinesA) renderer_wgl_use_font_outlines_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglDescribeLayerPlane) renderer_wgl_describe_layer_plane_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglSetLayerPaletteEntries) renderer_wgl_set_layer_palette_entries_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglGetLayerPaletteEntries) renderer_wgl_get_layer_palette_entries_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglRealizeLayerPalette) renderer_wgl_realize_layer_palette_func_t;
-typedef CODUO_FUNCTION_POINTER_TYPE(wglSwapLayerBuffers) renderer_wgl_swap_layer_buffers_func_t;
-typedef PFNWGLGETEXTENSIONSSTRINGEXTPROC renderer_wgl_get_extensions_string_ext_func_t;
-typedef PFNWGLSWAPINTERVALEXTPROC renderer_wgl_swap_interval_ext_func_t;
-typedef PFNWGLGETPIXELFORMATATTRIBIVARBPROC renderer_wgl_get_pixel_format_attribiv_arb_func_t;
-typedef PFNWGLGETPIXELFORMATATTRIBFVARBPROC renderer_wgl_get_pixel_format_attribfv_arb_func_t;
-typedef PFNWGLCHOOSEPIXELFORMATARBPROC renderer_wgl_choose_pixel_format_arb_func_t;
-typedef PFNWGLCREATEPBUFFERARBPROC renderer_wgl_create_pbuffer_arb_func_t;
-typedef PFNWGLGETPBUFFERDCARBPROC renderer_wgl_get_pbuffer_dc_arb_func_t;
-typedef PFNWGLRELEASEPBUFFERDCARBPROC renderer_wgl_release_pbuffer_dc_arb_func_t;
-typedef PFNWGLDESTROYPBUFFERARBPROC renderer_wgl_destroy_pbuffer_arb_func_t;
-typedef PFNWGLQUERYPBUFFERARBPROC renderer_wgl_query_pbuffer_arb_func_t;
-typedef PFNWGLBINDTEXIMAGEARBPROC renderer_wgl_bind_tex_image_arb_func_t;
-typedef PFNWGLRELEASETEXIMAGEARBPROC renderer_wgl_release_tex_image_arb_func_t;
-typedef PFNWGLSETPBUFFERATTRIBARBPROC renderer_wgl_set_pbuffer_attrib_arb_func_t;
-#else
 typedef int32_t (RENDERER_GL_API_CALL *renderer_wgl_copy_context_func_t)(
     renderer_wgl_render_context_t source,
     renderer_wgl_render_context_t destination, uint32_t mask);
@@ -313,7 +266,6 @@ typedef int32_t
     (RENDERER_GL_API_CALL *renderer_wgl_set_pbuffer_attrib_arb_func_t)(
         renderer_wgl_pbuffer_t pbuffer, const int32_t *attributes);
 
-#endif
 
 #define QGL_WGL_ENTRY(type_, name_) \
     extern type_ rendererWgl##name_##Driver; \

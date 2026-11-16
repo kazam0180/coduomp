@@ -53,16 +53,10 @@ char *va(const char *format, ...)
     char *result;
 
     va_start(arguments, format);
-#if defined(_WIN32)
-    length = _vsnprintf(q_vaTempBuffer, sizeof(q_vaTempBuffer),
-                        format, arguments);
-#else
     length = vsnprintf(q_vaTempBuffer, sizeof(q_vaTempBuffer),
                        format, arguments);
-#endif
     va_end(arguments);
 
-#if !defined(_WIN32)
     enum {
         Q_VA_FORMAT_FAILURE = -1
     };
@@ -74,7 +68,6 @@ char *va(const char *format, ...)
     if (length >= MAX_VA_STRING) {
         length = Q_VA_FORMAT_FAILURE;
     }
-#endif
 
     q_vaTempBuffer[Q_VA_LAST_INDEX] = '\0';
     if (length < 0 || length >= MAX_VA_STRING) {

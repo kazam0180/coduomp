@@ -2622,9 +2622,7 @@ int32_t trap_R_DrawStretchPic(int32_t x,
 /* NOT_FROM_ORIGINAL_SOURCE: defined float bit-copy adapters for the recovered
  * host build. They preserve the raw dword transfers used by the i386 VM/trap
  * ABI without strict-aliasing violations or an integer/float conversion. */
-#if defined(_MSC_VER)
-#define CG_RECOVERY_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CG_RECOVERY_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CG_RECOVERY_ALWAYS_INLINE inline
@@ -6114,9 +6112,7 @@ extern centity_t cg_entities[MAX_GENTITIES];
  * modulo-2^32 byte displacement. Keeping the address calculation at an explicit
  * integer boundary avoids false in-range C array provenance while preserving the
  * original absent-bound behavior; it does not make an invalid access safe. */
-#if defined(_MSC_VER)
-#define CGENTITY_COMPAT_ALWAYS_INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
+#if   defined(__GNUC__) || defined(__clang__)
 #define CGENTITY_COMPAT_ALWAYS_INLINE inline __attribute__((always_inline))
 #else
 #define CGENTITY_COMPAT_ALWAYS_INLINE inline

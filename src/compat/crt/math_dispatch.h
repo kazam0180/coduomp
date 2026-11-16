@@ -7,11 +7,7 @@
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
 #define CODUOMP_CRT_INTEL 1
 #include <emmintrin.h>
-#if defined(_MSC_VER)
-#include <intrin.h>
-#else
 #include <cpuid.h>
-#endif
 #if defined(__GNUC__) || defined(__clang__)
 #define CODUOMP_CRT_SSE2 __attribute__((target("sse2")))
 #else
@@ -41,24 +37,11 @@ static inline int coduomp_crt_cpu_sse2(void)
 {
     unsigned eax, edx;
     unsigned vendorB, vendorC, vendorD;
-#if defined(_MSC_VER)
-    int registers[4];
-    __cpuid(registers, 0);
-    if (registers[0] < CRT_CPU_FEATURES_LEAF)
-        return 0;
-    vendorB = (unsigned)registers[1];
-    vendorC = (unsigned)registers[2];
-    vendorD = (unsigned)registers[3];
-    __cpuid(registers, CRT_CPU_FEATURES_LEAF);
-    eax = (unsigned)registers[0];
-    edx = (unsigned)registers[3];
-#else
     unsigned ebx, ecx;
     if (__get_cpuid_max(0, 0) < CRT_CPU_FEATURES_LEAF)
         return 0;
     __cpuid(0, eax, vendorB, vendorC, vendorD);
     __cpuid(CRT_CPU_FEATURES_LEAF, eax, ebx, ecx, edx);
-#endif
     if ((edx & (1u << CRT_CPU_SSE2_BIT)) == 0)
         return 0;
     unsigned family = (eax >> 8) & 15;

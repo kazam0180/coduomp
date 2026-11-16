@@ -1,8 +1,5 @@
-#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
-#define _DARWIN_C_SOURCE
-#endif
 
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#if !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200112L
 #endif
 
@@ -14,13 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <wsipx.h>
-typedef SOCKET net_socket_handle_t;
-#define NET_INVALID_SOCKET_HANDLE INVALID_SOCKET
-#define NET_CLOSED_SOCKET_HANDLE ((net_socket_handle_t)0)
-#else
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
@@ -32,7 +22,6 @@ typedef SOCKET net_socket_handle_t;
 typedef int net_socket_handle_t;
 #define NET_INVALID_SOCKET_HANDLE (-1)
 #define NET_CLOSED_SOCKET_HANDLE NET_INVALID_SOCKET_HANDLE
-#endif
 
 enum {
     NET_PLATFORM_SOCKET_COUNT = 2,
@@ -106,9 +95,6 @@ static net_socket_handle_t netSocksSocket =
     NET_CLOSED_SOCKET_HANDLE;                 /* original 0x009cf2f8 */
 static qboolean netWinsockInitialized;        /* original 0x0389fdd0 */
 static qboolean netNetworkingEnabled;         /* original 0x0389fdd8 */
-#if defined(_WIN32)
-static WSADATA netWinsockData;                /* original 0x009d0360 */
-#endif
 static struct sockaddr_in netSocksRelayAddress;
                                                 /* original 0x009cf2fc */
 static uint8_t netSocksSendBuffer[
@@ -122,16 +108,12 @@ static int32_t sysLocalIpAddressCount;           /* original 0x009cf358 */
 /* Winsock owns the 14-byte SOCKADDR_IPX layout. The modern Unix targets do
  * not expose AF_IPX, but retaining the typed record keeps address conversion
  * consistent and lets unsupported IPX addresses remain inert there. */
-#if defined(_WIN32)
-typedef SOCKADDR_IPX net_sockaddr_ipx_t;
-#else
 typedef struct net_sockaddr_ipx_s {
     int16_t sa_family;
     char sa_netnum[4];
     char sa_nodenum[6];
     uint16_t sa_socket;
 } net_sockaddr_ipx_t;
-#endif
 
 typedef union net_socket_address_u {
     struct sockaddr generic;
@@ -177,60 +159,8 @@ _Static_assert(sizeof(net_socket_address_t) == 0x10,
  * unlisted Winsock errors. */
 const char *NET_ErrorString(void)
 {
-#if defined(_WIN32)
-    switch (WSAGetLastError()) {
-    case WSAEINTR: return "WSAEINTR";
-    case WSAEBADF: return "WSAEBADF";
-    case WSAEACCES: return "WSAEACCES";
-    case WSAEFAULT: return "WSAEFAULT";
-    case WSAEINVAL: return "WSAEINVAL";
-    case WSAEMFILE: return "WSAEMFILE";
-    case WSAEWOULDBLOCK: return "WSAEWOULDBLOCK";
-    case WSAEINPROGRESS: return "WSAEINPROGRESS";
-    case WSAEALREADY: return "WSAEALREADY";
-    case WSAENOTSOCK: return "WSAENOTSOCK";
-    case WSAEDESTADDRREQ: return "WSAEDESTADDRREQ";
-    case WSAEMSGSIZE: return "WSAEMSGSIZE";
-    case WSAEPROTOTYPE: return "WSAEPROTOTYPE";
-    case WSAENOPROTOOPT: return "WSAENOPROTOOPT";
-    case WSAEPROTONOSUPPORT: return "WSAEPROTONOSUPPORT";
-    case WSAESOCKTNOSUPPORT: return "WSAESOCKTNOSUPPORT";
-    case WSAEOPNOTSUPP: return "WSAEOPNOTSUPP";
-    case WSAEPFNOSUPPORT: return "WSAEPFNOSUPPORT";
-    case WSAEAFNOSUPPORT: return "WSAEAFNOSUPPORT";
-    case WSAEADDRINUSE: return "WSAEADDRINUSE";
-    case WSAEADDRNOTAVAIL: return "WSAEADDRNOTAVAIL";
-    case WSAENETDOWN: return "WSAENETDOWN";
-    case WSAENETUNREACH: return "WSAENETUNREACH";
-    case WSAENETRESET: return "WSAENETRESET";
-    case WSAECONNABORTED:
-        /* Preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        return "WSWSAECONNABORTEDAEINTR";
-    case WSAECONNRESET: return "WSAECONNRESET";
-    case WSAENOBUFS: return "WSAENOBUFS";
-    case WSAEISCONN: return "WSAEISCONN";
-    case WSAENOTCONN: return "WSAENOTCONN";
-    case WSAESHUTDOWN: return "WSAESHUTDOWN";
-    case WSAETOOMANYREFS: return "WSAETOOMANYREFS";
-    case WSAETIMEDOUT: return "WSAETIMEDOUT";
-    case WSAECONNREFUSED: return "WSAECONNREFUSED";
-    case WSAELOOP: return "WSAELOOP";
-    case WSAENAMETOOLONG: return "WSAENAMETOOLONG";
-    case WSAEHOSTDOWN: return "WSAEHOSTDOWN";
-    case WSASYSNOTREADY: return "WSASYSNOTREADY";
-    case WSAVERNOTSUPPORTED: return "WSAVERNOTSUPPORTED";
-    case WSANOTINITIALISED: return "WSANOTINITIALISED";
-    case WSAEDISCON: return "WSAEDISCON";
-    case WSAHOST_NOT_FOUND: return "WSAHOST_NOT_FOUND";
-    case WSATRY_AGAIN: return "WSATRY_AGAIN";
-    case WSANO_RECOVERY: return "WSANO_RECOVERY";
-    case WSANO_DATA: return "WSANO_DATA";
-    default: return "NO ERROR";
-    }
-#else
     /* The same API in the recovered Linux engine returns strerror(errno). */
     return strerror(errno);
-#endif
 }
 
 /* Source: CoDUOMP.exe 0x0046cb30..0x0046cbc9.
@@ -401,20 +331,6 @@ qboolean Sys_GetPacket(netadr_t *address, msg_t *message)
             continue;
 
         net_socket_address_t sourceAddress;
-#if defined(_WIN32)
-        int32_t sourceAddressLength = sizeof(sourceAddress);
-        const int32_t received = recvfrom(
-            socketHandle, (char *)message->data, message->maxsize, 0,
-            &sourceAddress.generic, &sourceAddressLength);
-        if (received == SOCKET_ERROR) {
-            const int32_t error = WSAGetLastError();
-            if (error != WSAEWOULDBLOCK &&
-                error != WSAECONNRESET) {
-                Com_Printf("NET_GetPacket: %s\n", NET_ErrorString());
-            }
-            continue;
-        }
-#else
         socklen_t sourceAddressLength = sizeof(sourceAddress);
         const ssize_t receivedNative = recvfrom(
             socketHandle, message->data, (size_t)message->maxsize, 0,
@@ -427,7 +343,6 @@ qboolean Sys_GetPacket(netadr_t *address, msg_t *message)
             continue;
         }
         const int32_t received = (int32_t)receivedNative;
-#endif
 
         if (socketIndex == NET_PLATFORM_IP_SOCKET) {
             memset(sourceAddress.ipv4.sin_zero, 0,
@@ -568,22 +483,6 @@ void Sys_SendPacket(int32_t length, const void *data, netadr_t address)
             (const struct sockaddr *)&netSocksRelayAddress;
     }
 
-#if defined(_WIN32)
-    const int32_t sent = sendto(
-        socketHandle, (const char *)sendData, sendLength, 0,
-        destination, sizeof(net_socket_address_t));
-    if (sent != SOCKET_ERROR)
-        return;
-
-    const int32_t error = WSAGetLastError();
-    if (error == WSAEWOULDBLOCK)
-        return;
-    if (error == WSAEADDRNOTAVAIL &&
-        (address.type == NA_BROADCAST ||
-         address.type == NA_BROADCAST_IPX)) {
-        return;
-    }
-#else
     const ssize_t sent = sendto(
         socketHandle, sendData, (size_t)sendLength, 0,
         destination, sizeof(net_socket_address_t));
@@ -598,7 +497,6 @@ void Sys_SendPacket(int32_t length, const void *data, netadr_t address)
          address.type == NA_BROADCAST_IPX)) {
         return;
     }
-#endif
 
     Com_Printf("Sys_SendPacket: %s\n", NET_ErrorString());
 }
@@ -695,40 +593,6 @@ static net_socket_handle_t Sys_OpenIPSocket(
 
     const net_socket_handle_t socketHandle =
         socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-#if defined(_WIN32)
-    if (socketHandle == INVALID_SOCKET) {
-        if (WSAGetLastError() != WSAEAFNOSUPPORT) {
-            Com_Printf(
-                "WARNING: UDP_OpenSocket: socket: %s\n",
-                NET_ErrorString());
-        }
-        return NET_CLOSED_SOCKET_HANDLE;
-    }
-
-    u_long nonblocking = NET_SOCKET_OPTION_ENABLED;
-    if (ioctlsocket(socketHandle, FIONBIO, &nonblocking) ==
-        SOCKET_ERROR) {
-        Com_Printf(
-            "WARNING: UDP_OpenSocket: ioctl FIONBIO: %s\n",
-            NET_ErrorString());
-        /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        closesocket(socketHandle);
-        return NET_CLOSED_SOCKET_HANDLE;
-    }
-
-    const int32_t broadcast = NET_SOCKET_OPTION_ENABLED;
-    if (setsockopt(
-            socketHandle, SOL_SOCKET, SO_BROADCAST,
-            (const char *)&broadcast, sizeof(broadcast)) ==
-        SOCKET_ERROR) {
-        Com_Printf(
-            "WARNING: UDP_OpenSocket: setsockopt SO_BROADCAST: %s\n",
-            NET_ErrorString());
-        /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-        closesocket(socketHandle);
-        return NET_CLOSED_SOCKET_HANDLE;
-    }
-#else
     if (socketHandle == -1) {
         if (errno != EAFNOSUPPORT) {
             Com_Printf(
@@ -738,26 +602,6 @@ static net_socket_handle_t Sys_OpenIPSocket(
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
-#if defined(__APPLE__)
-    /*
-     * NOT_FROM_ORIGINAL_SOURCE: the original PPC Mac client uses
-     * OpenTransport's OTSendUData, whose failure is returned to
-     * Sys_SendPacket.  A native Darwin sendto can instead terminate the
-     * process with SIGPIPE after an unreachable authorization endpoint.
-     * SO_NOSIGPIPE restores the original error-return boundary without
-     * changing the shipped Windows/i386 socket path.
-     */
-    const int32_t noSigPipe = NET_SOCKET_OPTION_ENABLED;
-    if (setsockopt(
-            socketHandle, SOL_SOCKET, SO_NOSIGPIPE,
-            &noSigPipe, sizeof(noSigPipe)) == -1) {
-        Com_Printf(
-            "WARNING: UDP_OpenSocket: setsockopt SO_NOSIGPIPE: %s\n",
-            NET_ErrorString());
-        close(socketHandle);
-        return NET_CLOSED_SOCKET_HANDLE;
-    }
-#endif
 
     int32_t nonblocking = NET_SOCKET_OPTION_ENABLED;
     if (ioctl(socketHandle, FIONBIO, &nonblocking) == -1) {
@@ -780,7 +624,6 @@ static net_socket_handle_t Sys_OpenIPSocket(
         close(socketHandle);
         return NET_CLOSED_SOCKET_HANDLE;
     }
-#endif
 
     net_socket_address_t address;
     if (netInterface != NULL &&
@@ -789,11 +632,7 @@ static net_socket_handle_t Sys_OpenIPSocket(
         /* NOT_FROM_ORIGINAL_SOURCE: validate this recovered engine boundary input and state before use. */
         if (Sys_StringToSockaddr(netInterface, &address) == qfalse) {
             Com_Printf("WARNING: UDP_OpenSocket: couldn't resolve interface %s\n", netInterface);
-#if defined(_WIN32)
-            closesocket(socketHandle);
-#else
             close(socketHandle);
-#endif
             return NET_CLOSED_SOCKET_HANDLE;
         }
     } else {
@@ -811,11 +650,7 @@ static net_socket_handle_t Sys_OpenIPSocket(
         Com_Printf(
             "WARNING: UDP_OpenSocket: bind: %s\n",
             NET_ErrorString());
-#if defined(_WIN32)
-        closesocket(socketHandle);
-#else
         close(socketHandle);
-#endif
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
@@ -828,14 +663,8 @@ static qboolean coduomp_net_socks_send_all(const uint8_t *data, size_t length)
     size_t transferred = 0;
 
     while (transferred < length) {
-#if defined(_WIN32)
-        const int32_t result = send(netSocksSocket,
-                                    (const char *)&data[transferred],
-                                    (int32_t)(length - transferred), 0);
-#else
         const ssize_t result = send(netSocksSocket, &data[transferred],
                                     length - transferred, 0);
-#endif
         if (result < 0) {
             Com_Printf("NET_OpenSocks: send: %s\n", NET_ErrorString());
             return qfalse;
@@ -855,14 +684,8 @@ static qboolean coduomp_net_socks_receive_exact(uint8_t *data, size_t length)
     size_t transferred = 0;
 
     while (transferred < length) {
-#if defined(_WIN32)
-        const int32_t result = recv(netSocksSocket,
-                                    (char *)&data[transferred],
-                                    (int32_t)(length - transferred), 0);
-#else
         const ssize_t result = recv(netSocksSocket, &data[transferred],
                                     length - transferred, 0);
-#endif
         if (result < 0) {
             Com_Printf("NET_OpenSocks: recv: %s\n", NET_ErrorString());
             return qfalse;
@@ -890,33 +713,13 @@ static void NET_OpenSocks(int32_t port)
     Com_Printf("Opening connection to SOCKS server.\n");
 
     netSocksSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-#if defined(_WIN32)
-    if (netSocksSocket == INVALID_SOCKET) {
-#else
     if (netSocksSocket == -1) {
-#endif
         Com_Printf(
             "WARNING: NET_OpenSocks: socket: %s\n",
             NET_ErrorString());
         return;
     }
 
-#if defined(__APPLE__)
-    /*
-     * NOT_FROM_ORIGINAL_SOURCE: match the original Mac OpenTransport
-     * error-return behavior for every send on the native SOCKS control
-     * socket as well as the ordinary UDP socket.
-     */
-    const int32_t noSigPipe = NET_SOCKET_OPTION_ENABLED;
-    if (setsockopt(
-            netSocksSocket, SOL_SOCKET, SO_NOSIGPIPE,
-            &noSigPipe, sizeof(noSigPipe)) == -1) {
-        Com_Printf(
-            "WARNING: NET_OpenSocks: setsockopt SO_NOSIGPIPE: %s\n",
-            NET_ErrorString());
-        goto failed;
-    }
-#endif
 
     /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
     const struct hostent *host =
@@ -1083,11 +886,7 @@ failed:
     /* NOT_FROM_ORIGINAL_SOURCE: stock's failure paths print and return,
      * leaving the SOCKS control socket open; this cleanup releases it and
      * marks the handle closed so later state checks see a coherent value. */
-#if defined(_WIN32)
-    closesocket(netSocksSocket);
-#else
     close(netSocksSocket);
-#endif
     netSocksSocket = NET_CLOSED_SOCKET_HANDLE;
 }
 
@@ -1187,11 +986,7 @@ static net_socket_handle_t Sys_OpenIPXSocket(int32_t port)
         NET_PLATFORM_AF_IPX, SOCK_DGRAM,
         NET_PLATFORM_IPX_PROTOCOL);
     if (socketHandle == NET_INVALID_SOCKET_HANDLE) {
-#if defined(_WIN32)
-        if (WSAGetLastError() != WSAEAFNOSUPPORT) {
-#else
         if (errno != EAFNOSUPPORT) {
-#endif
             Com_Printf(
                 "WARNING: IPX_Socket: socket: %s\n",
                 NET_ErrorString());
@@ -1199,46 +994,25 @@ static net_socket_handle_t Sys_OpenIPXSocket(int32_t port)
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
-#if defined(_WIN32)
-    u_long nonblocking = NET_SOCKET_OPTION_ENABLED;
-    if (ioctlsocket(socketHandle, FIONBIO, &nonblocking) ==
-        SOCKET_ERROR) {
-#else
     int32_t nonblocking = NET_SOCKET_OPTION_ENABLED;
     if (ioctl(socketHandle, FIONBIO, &nonblocking) == -1) {
-#endif
         Com_Printf(
             "WARNING: IPX_Socket: ioctl FIONBIO: %s\n",
             NET_ErrorString());
         /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-#if defined(_WIN32)
-        closesocket(socketHandle);
-#else
         close(socketHandle);
-#endif
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
     const int32_t broadcast = NET_SOCKET_OPTION_ENABLED;
-#if defined(_WIN32)
-    if (setsockopt(
-            socketHandle, SOL_SOCKET, SO_BROADCAST,
-            (const char *)&broadcast, sizeof(broadcast)) ==
-        SOCKET_ERROR) {
-#else
     if (setsockopt(
             socketHandle, SOL_SOCKET, SO_BROADCAST,
             &broadcast, sizeof(broadcast)) == -1) {
-#endif
         Com_Printf(
             "WARNING: IPX_Socket: setsockopt SO_BROADCAST: %s\n",
             NET_ErrorString());
         /* NOT_FROM_ORIGINAL_SOURCE: preserve this recovered boundary's validated input, state, and compatibility invariants. */
-#if defined(_WIN32)
-        closesocket(socketHandle);
-#else
         close(socketHandle);
-#endif
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
@@ -1254,11 +1028,7 @@ static net_socket_handle_t Sys_OpenIPXSocket(int32_t port)
         Com_Printf(
             "WARNING: IPX_Socket: bind: %s\n",
             NET_ErrorString());
-#if defined(_WIN32)
-        closesocket(socketHandle);
-#else
         close(socketHandle);
-#endif
         return NET_CLOSED_SOCKET_HANDLE;
     }
 
@@ -1367,29 +1137,17 @@ void NET_Config(qboolean enableNetworking)
         netUsingSocks = qfalse;
         if (netIpSocket != NET_CLOSED_SOCKET_HANDLE &&
             netIpSocket != NET_INVALID_SOCKET_HANDLE) {
-#if defined(_WIN32)
-            closesocket(netIpSocket);
-#else
             close(netIpSocket);
-#endif
             netIpSocket = NET_CLOSED_SOCKET_HANDLE;
         }
         if (netSocksSocket != NET_CLOSED_SOCKET_HANDLE &&
             netSocksSocket != NET_INVALID_SOCKET_HANDLE) {
-#if defined(_WIN32)
-            closesocket(netSocksSocket);
-#else
             close(netSocksSocket);
-#endif
             netSocksSocket = NET_CLOSED_SOCKET_HANDLE;
         }
         if (netIpxSocket != NET_CLOSED_SOCKET_HANDLE &&
             netIpxSocket != NET_INVALID_SOCKET_HANDLE) {
-#if defined(_WIN32)
-            closesocket(netIpxSocket);
-#else
             close(netIpxSocket);
-#endif
             netIpxSocket = NET_CLOSED_SOCKET_HANDLE;
         }
     }
@@ -1408,16 +1166,6 @@ void NET_Config(qboolean enableNetworking)
  * Name: exact same-module Mac symbol Sys_InitNetworking. */
 void Sys_InitNetworking(void)
 {
-#if defined(_WIN32)
-    const int32_t result = WSAStartup(
-        NET_WINSOCK_VERSION_1_1, &netWinsockData);
-    if (result != 0) {
-        Com_Printf(
-            "WARNING: Winsock initialization failed, returned %d\n",
-            result);
-        return;
-    }
-#endif
 
     netWinsockInitialized = qtrue;
     Com_Printf("Winsock Initialized\n");
@@ -1435,9 +1183,6 @@ void Sys_ShutdownNetworking(void)
         return;
 
     NET_Config(qfalse);
-#if defined(_WIN32)
-    (void)WSACleanup();
-#endif
     netWinsockInitialized = qfalse;
 }
 
@@ -1458,14 +1203,10 @@ void NET_Restart_f(void)
  * wrapper. */
 void NET_Sleep(int32_t milliseconds)
 {
-#if defined(_WIN32)
-    Sleep((DWORD)milliseconds);
-#else
     /* NOT_FROM_ORIGINAL_SOURCE: native POSIX replacement for Win32 Sleep. */
     const struct timespec duration = {
         milliseconds / 1000,
         (milliseconds % 1000) * 1000000L
     };
     (void)nanosleep(&duration, NULL);
-#endif
 }

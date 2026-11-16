@@ -23,9 +23,7 @@ enum {
 #define VM_DLL_ENTRY_SYMBOL "dllEntry"
 #define VM_MAIN_SYMBOL "vmMain"
 
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define VM_CDECL __cdecl
-#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+#if   defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
 #define VM_CDECL __attribute__((cdecl))
 #else
 #define VM_CDECL

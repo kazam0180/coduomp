@@ -6,33 +6,13 @@
 
 /* NOT_FROM_ORIGINAL_SOURCE: bind the dynamic renderer interface to the target
  * SDK. Extension prototypes are used only for type declarations, not linkage. */
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#endif
 
-#if defined(__APPLE__)
-#ifndef GL_SILENCE_DEPRECATION
-#define GL_SILENCE_DEPRECATION
-#endif
-#include <OpenGL/gl.h>
-#include <OpenGL/glext.h>
-#else
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES 1
 #endif
 #include <GL/gl.h>
 #include <GL/glext.h>
-#endif
 
-#if defined(_WIN32)
-#include <GL/wglext.h>
-#endif
 
 /* Tokens for legacy extensions omitted from the Apple SDK. An SDK definition
  * always takes precedence; these are the registered OpenGL token values. */

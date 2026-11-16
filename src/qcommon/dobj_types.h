@@ -124,9 +124,7 @@ struct DObj_s {
     uint8_t modelPartBaseIndices[DOBJ_MAX_MODELS];
 };
 
-#if defined(_MSC_VER)
-#define DOBJ_TYPES_ALIGNOF(type) __alignof(type)
-#elif defined(__cplusplus)
+#if   defined(__cplusplus)
 #define DOBJ_TYPES_ALIGNOF(type) alignof(type)
 #else
 #define DOBJ_TYPES_ALIGNOF(type) __alignof__(type)
