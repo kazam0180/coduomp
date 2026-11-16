@@ -1063,7 +1063,7 @@ void CoduoSDL_PumpEvents(void)
              * native Command-V chord on macOS. */
             if (event.type == SDL_KEYDOWN &&
                 event.key.keysym.sym == SDLK_v &&
-                (event.key.keysym.mod & (KMOD_CTRL | KMOD_GUI)) != 0) {
+                (event.key.keysym.mod & KMOD_CTRL) != 0) {
                 Sys_QueEvent(
                     sysMsgTime, SE_CHAR, CODUO_SDL_CHAR_PASTE, 0, 0, NULL);
             }

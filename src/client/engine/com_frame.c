@@ -4,13 +4,6 @@
 #include "scripting/script_runtime.h"
 #include "server/server.h"
 #include "system_console.h"
-#include "system_process_lock.h"
-
-#include <setjmp.h>
-
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 
 enum {
     COM_STATMON_FPS_ENTRY = 0,
@@ -93,35 +86,17 @@ void Com_Frame(void)
     SV_Frame(realMsec);
 
     if (dedicated->modified != qfalse) {
-        const int32_t previousDedicated = dedicated->integer;
         (void)Cvar_Get("dedicated", "0", 0);
         dedicated->modified = qfalse;
 
         if (dedicated->integer == 0) {
-            qboolean processLockAvailable = qtrue;
-#if defined(_WIN32)
-            processLockAvailable = Sys_CheckProcessLock();
-#endif
-            if (processLockAvailable == qfalse) {
-                Com_Printf(
-                    "cannot become non-dedicated, since a non-dedicated "
-                    "game is already running\n");
-                (void)Cvar_Set2("dedicated",
-                                va("%i", previousDedicated), qtrue);
-                (void)Cvar_Get("dedicated", "1", 0);
-                dedicated->modified = qfalse;
-            } else {
-                SV_RemoveDedicatedCommands();
-                CL_Init();
-                CL_StartHunkUsers();
-                Sys_ShowConsole(com_viewlog->integer, qfalse);
-            }
+            SV_RemoveDedicatedCommands();
+            CL_Init();
+            CL_StartHunkUsers();
+            Sys_ShowConsole(com_viewlog->integer, qfalse);
         } else {
             CL_Shutdown();
             Sys_ShowConsole(COM_CONSOLE_VISIBLE, qtrue);
-#if defined(_WIN32)
-            Sys_DeleteProcessLockFile();
-#endif
             Cmd_AddCommand("say", SV_ConSay_f);
             Cmd_AddCommand("tell", SV_ConTell_f);
         }

@@ -2,9 +2,7 @@
 #define GAME_FUNCTIONS_H
 
 #include <stdint.h>
-#if defined(_WIN32)
-#include <string.h>
-#endif
+#include <strings.h>
 #include "qcommon/com_parse.h"
 #include "qcommon/com_sprintf.h"
 #include "bg/bg_player_state.h"
@@ -22,9 +20,7 @@
  * Non-Scr_, non-trap_ functions used throughout the codebase.
  */
 
-#if !defined(_WIN32)
 extern int strcasecmp(const char *a, const char *b);
-#endif
 
 /* Math utilities */
 extern void G_SetMovedir(float *angles, float *movedir);
@@ -285,6 +281,7 @@ extern void player_die(gentity_t *self, gentity_t *inflictor,
 extern void LookAtKiller(gentity_t *self, gentity_t *inflictor,
                          gentity_t *attacker);
 extern int G_GetHitLocationIndexFromString(uint16_t hitLocationName);
+extern void GScr_ProcessClientCommand(uint32_t scriptObject);
 
 /* Initialization functions */
 extern void G_RegisterCvars(void);

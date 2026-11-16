@@ -10,17 +10,13 @@
 #include "qcommon/qtime_types.h"
 #include "qcommon/ui_module_abi_types.h"
 
-#if defined(_WIN32)
-#define UI_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
 #define UI_EXPORT __attribute__((visibility("default")))
 #else
 #define UI_EXPORT
 #endif
 
-#if defined(_MSC_VER) && defined(_M_IX86)
-#define UI_ABI_CDECL __cdecl
-#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
 #define UI_ABI_CDECL __attribute__((cdecl))
 #else
 #define UI_ABI_CDECL
