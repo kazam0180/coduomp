@@ -108,8 +108,6 @@ Relevant options:
   `--cross-file cross/linux-i386.ini`.
 - `-Dfp_faithful=auto|strict|relaxed` controls the x87 faithfulness policy.
   The default requires a compiler that accepts `-mfpmath=387` on x86-64.
-- `-Dsoftware_x87_backend=softfloat|double` selects the backend for targets
-  that emulate x87.
 
 Changing an option after setup is possible with `meson configure`, but a fresh
 build directory is clearer when switching architectures or compilers.

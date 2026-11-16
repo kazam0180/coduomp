@@ -13,10 +13,13 @@ pacman -Syu --noconfirm \
 	base-devel \
 	meson \
 	ninja \
+	curl \
+	libjpeg-turbo \
+	libsndfile \
+	libx11 \
 	minizip \
-	nasm \
 	openal \
-	libjpeg-turbo
+	zlib
 
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
@@ -32,10 +35,6 @@ if [ -d "$build_dir" ]; then
 else
 	meson setup "$build_dir"
 fi
-
-echo "Building softfloat..."
-echo "---------------------------------------------------------------"
-meson compile -C "$build_dir" softfloat
 
 echo "Building the client and dedicated server..."
 echo "---------------------------------------------------------------"
