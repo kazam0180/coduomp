@@ -1,0 +1,14 @@
+option('client', type: 'boolean', value: true,
+  description: 'Build the native client executable and its cgame/UI modules')
+option('server', type: 'boolean', value: true,
+  description: 'Build the dedicated server executable')
+option('game', type: 'boolean', value: true,
+  description: 'Build the client and dedicated-server game modules')
+option('server_auth', type: 'boolean', value: false,
+  description: 'Enable external CD-key authorization in the dedicated server')
+option('punkbuster', type: 'boolean', value: false,
+  description: 'Build PunkBuster recovery code instead of the disabled stub (32-bit x86 only)')
+option('fp_faithful', type: 'combo', choices: ['auto', 'strict', 'relaxed'], value: 'auto',
+  description: 'Native x87 floating-point faithfulness policy')
+option('renderer_gpu_profile', type: 'boolean', value: false,
+  description: 'Compile asynchronous renderer GPU timing instrumentation')

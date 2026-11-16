@@ -1,0 +1,4 @@
+src/client/engine/localization/string_ed_api.cpp
+src/client/engine/localization/string_ed_package.cpp
+src/scripting/script_error_exception.cpp
+src/scripting/script_vm.cpp
