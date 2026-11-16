@@ -9,6 +9,8 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 - Suppresses duplicate local-player firing effects caused by prediction replay, including recoil, muzzle flashes, shot sounds and brass; the same filter covers replayed reload and rechamber sounds.
 - Spawn reload animation is fixed, it won't play anymore
 - Local server map list limit increased to 2048
+- A client with an invalid CD key can join servers that do not request authorization. Servers that request it still reject the connection.
+- Restoring HUD defaults keeps the element's movement interpolation state.
 - Sound Options has independent Effects Volume and Music Volume sliders. The existing `mss_volume` cvar controls effects/SFX, and the new `musicVolume` cvar controls music; both use a 0-1 range, with 0 muting that category. There is no separate `sfxVolume` cvar. The retired `playMusic` switch is replaced by the music slider; existing effects-volume and music-mute preferences seed the first independent music setting.
 
 ### Server browser
@@ -24,6 +26,7 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 - Per-map `<map>_<gametype>.cfg` files load by the visible map name even when the map asset name contains color escapes.
 - **Server configuration:** add `set g_allowGlobalChat 0` to the server config or enter it in the server console to disable player general chat while preserving team, squad, private, scripted, and server-console messages. Set it to `1` to enable general chat again; `1` is the default.
 - Dedicated and listen servers skip external CD-key authorization by default.
+- Redirect downloads join `sv_wwwBaseURL` and the pak path with one separator and normalize pak-path backslashes. Empty or oversized redirect URLs fall back to direct downloads.
 
 ### Platforms and display
 
@@ -39,11 +42,12 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Servers, mods, and configuration
 
+- Every build target uses one behavior path, the Windows behavior path imported from upstream. The Linux-only alternate bodies are removed.
 - The **Start New Server** menu's local catalog now supports up to 2,048 maps, replacing stock's 128-map table, 64-arena staging limit, and 1 KiB filename list so large custom-map installs no longer hide later maps, including stock maps. Server broadcast protocol limits remain unchanged.
 - Connecting no longer fails with the common `MAX_GAMESTATE_CHARS exceeded` error: the client's retained configstring pool grows from 20,480 to 32,768 bytes, enough for any gamestate a protocol-22 server can physically deliver (a gamestate must fit one 32,768-byte network message, which spends more bytes per configstring than the pool does). The same enlarged pool bounds configstring updates during play, and a server that composes an oversized gamestate logs a clear console warning while behaving exactly as before.
 - Downloads are enabled by default unless the user has explicitly disabled them.
 - Server Cache isolates each remote server's settings and downloaded content so servers cannot overwrite one another's same-named PK3s.
-- Server mod reset independently restores the process-start `fs_game` after disconnecting, including when Server Cache is disabled.
+- Server mod reset independently restores the process-start `fs_game` after disconnecting from a remote session, including when Server Cache is disabled. Manually selected mods remain loaded while starting, changing maps on, or leaving a local listen server.
 - Cached server mods appear in the Mods list, and checksum-matching PK3s from ordinary game roots or other server caches are reused instead of downloaded again. Cache matches may have different filenames or mod directories; the source server's configuration and unrelated content remain isolated.
 - Server Cache can be disabled under **Options -> System -> Advanced**.
 - `promoteserverconfig` saves the current isolated server profile as the global configuration.
@@ -70,6 +74,6 @@ This is a feature-oriented summary of lasting, user-visible differences from the
 
 ### Optional renderer profiling
 
-- Custom builds made with `CODUOMP_RENDERER_GPU_PROFILE=1` expose GPU timing controls. These diagnostics and cvars are excluded from normal release builds.
+- Custom builds made with `-Drenderer_gpu_profile=true` expose GPU timing controls. These diagnostics and cvars are excluded from normal release builds.
 - `r_gpuProfile` selects off (`0`, the default), slow-frame logging (`1`), or every-frame logging (`2`). `r_gpuProfileSlowMsec` sets the slow-frame threshold in milliseconds (default `4.0`).
 - `r_gpuProfileDetail` selects whole-frame timing (`0`, the default), command-phase timing (`1`), or invasive per-batch timing (`2`). Profiling controls are temporary and are not saved to the client configuration.

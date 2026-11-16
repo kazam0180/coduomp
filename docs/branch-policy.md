@@ -10,11 +10,8 @@ This repository has two maintained public products:
 Stock preserves behavior for legitimate supported inputs, including gameplay,
 presentation, defaults, network and file formats, VM and module interfaces,
 ordering, arithmetic, precision, and valid-input failure behavior. The original
-Windows i386 client and server binaries define the behavior contract on every
-supported host. Linux and macOS builds implement that same contract; original
-Linux binaries are not an alternate authority. Platform-behavior selectors and
-software x87 emulation are unsupported. Native x87 and wide native C arithmetic
-retain the required rounding and truncation boundaries.
+Windows i386 client and Linux i386 server/module behavior define the historical
+platform contract.
 
 Stock also carries implementation changes required to realize that contract on
 supported systems:
@@ -29,54 +26,6 @@ A hardening check may reject malformed input, but it must not reject legitimate
 stock maps, mods, packages, servers, or player behavior. Treat a false positive
 as an unresolved bug in the check.
 
-### CRT compatibility boundary
-
-The original Windows CRT functions reached by recovered engine and module code
-are part of the behavior contract. Reimplement their observable semantics in
-the shared compatibility layer when host libc/libm does not preserve them.
-This includes random sequences and image/thread state ownership, parsing and
-conversion results, sorting order, character handling, formatting bytes and
-return values, and ownership or failure behavior observed by callers. A standard
-C name or matching signature does not establish compatibility.
-
-Host services may implement a boundary only when their behavior matches over
-the supported caller domain. Private heap layouts, startup machinery, locale
-tables, stream internals, exception dispatch, stack probes, and security-cookie
-implementations need not be cloned merely because they were statically linked.
-Their observable effects still matter: for example, allocation ownership,
-environment-string lifetime, and the executable's floating-point initialization.
-CRT classification identifies implementation ownership; it does not exempt a
-function from behavior recovery. Shared replacements belong in compatibility
-code, rather than being presented as original game functions.
-
-Software x87 emulation remains prohibited. Use native x87 where supported and
-the widest appropriate native C arithmetic elsewhere, preserving the actual
-rounding and truncation points. macOS arm64 cannot reproduce the hardware x87
-execution model with its native arithmetic; document the specific limitations
-instead of promising identical results. This exception does not cover other
-CRT semantics that can be reproduced. In particular, the original decimal
-parser's integer arithmetic and construction of floating-point result bits are
-CRT algorithms, not an x87 emulator, and remain part of the compatibility layer.
-
-A partial wrapper or host-libm fallback is not proof of complete CRT parity.
-Keep unsupported formats, domains, and observable side effects explicit until
-verified against the identified original Windows implementation. Required CRT
-compatibility changes belong in stock and must be merged forward into master.
-
-## Shared build tooling
-
-Build tooling must be the same on `stock` and `master`. This includes
-Make/CMake mechanisms, parallelism and other build defaults, toolchain and
-dependency handling, packaging, build metadata, and documentation for shared
-build behavior. Build-performance improvements belong in both branches.
-Preserve each branch's intended product settings and source membership when
-sharing tooling.
-
-Implement, validate, and commit tooling changes on `stock` first, then merge
-`stock` forward into `master` and validate both in the same work cycle. Tooling
-work is incomplete while present on only one branch. The master-only
-optimization rule applies to runtime/product behavior, not build tooling.
-
 ## Improved boundary
 
 Improved descends from stock and contains intentional product changes:
@@ -86,19 +35,7 @@ Improved descends from stock and contains intentional product changes:
 - presentation, branding, UI, and usability changes;
 - changed defaults, limits, policies, or diagnostics;
 - optional compatibility behavior; and
-- general runtime performance optimizations.
-
-Math performance exceptions on master are restricted to proven presentation
-expressions. Server code and client movement, prediction, physics, damage,
-bullet tracing, collision, world geometry, camera/projection, and HUD calculations
-retain fidelity. HUD position, size, fading, and other arithmetic remain part of
-the compatibility contract because mods may depend on precise behavior. Preserve original inline instructions as well as CRT calls;
-fidelity does not mean routing every operation through a CRT wrapper. Neither a
-`CG_` name nor a renderer directory grants an exemption. Rendering changes that
-can affect visible geometry, silhouettes, depth, occlusion, or apparent collision
-edges require fidelity too. Shared state and random-sequence dependencies must
-be checked before treating an expression as visual-only. There are no CG power
-or square-root performance exceptions; see `docs/client-building.md`.
+- general performance optimizations.
 
 The `stock..master` diff is the maintained description of customization.
 Do not recreate a mixed source tree with `STRICT_STOCK`, another preprocessor
@@ -113,8 +50,8 @@ For every transcription bug fix:
 
 1. Implement, validate, and commit the change on `stock` first.
 2. Merge `stock` into `master`, preserving the stock commit's ancestry.
-3. Validate the merged result on `master`, including `make policy-check` in
-   both worktrees, and complete both branches in the same work cycle.
+3. Validate the merged result on `master`, including the `policy-check` Meson
+   target in both worktrees, and complete both branches in the same work cycle.
 
 Use a forward merge rather than duplicate cherry-picks or independently
 reapplying the patch. A transcription correction is incomplete while present
@@ -132,4 +69,4 @@ recipes, severity assessments, vulnerable-retail trigger comparisons, or
 labels such as `SECURITY_PATCH`. Use a private maintainer channel for those
 details and express the public rule directly.
 
-Run `make policy-check` on both branches before release.
+Run the `policy-check` Meson target on both branches before release.

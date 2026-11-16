@@ -1,17 +1,14 @@
 # Renderer frame profiling
 
 The client has opt-in CPU frame timing, OpenGL GPU timing, and renderer-batch
-diagnostics. They are excluded from normal builds and must be enabled with the compiler gate
-`CODUOMP_RENDERER_GPU_PROFILE=1`.
+diagnostics. They are excluded from normal builds and must be enabled with the
+Meson option `-Drenderer_gpu_profile=true`.
 
-Use a dedicated build directory. Make does not track build-variable changes as
-object dependencies, so reusing a directory previously built without the flag
-can leave a mixture of instrumented and uninstrumented objects.
+Use a dedicated build directory:
 
 ```sh
-make client \
-  BUILD_DIR=.workbench/build/gpu-profile \
-  CODUOMP_RENDERER_GPU_PROFILE=1
+meson setup .workbench/build/gpu-profile -Drenderer_gpu_profile=true
+meson compile -C .workbench/build/gpu-profile
 ```
 
 The flag is supported by the native client-engine build. Modes 1 and 2
@@ -25,13 +22,11 @@ unavailable. CPU-only mode 3 does not use OpenGL timer queries.
 Development captures should use an isolated profile. For example:
 
 ```sh
-make client-test-run \
-  BUILD_DIR=.workbench/build/gpu-profile \
-  CODUOMP_RENDERER_GPU_PROFILE=1 \
-  CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
-  CLIENT_TEST_WORK_DIR=.workbench/runtime/gpu-profile/work \
-  CLIENT_TEST_HOME_PATH=.workbench/runtime/gpu-profile/home \
-  CLIENT_ARGS="+set r_gpuProfile 3"
+CLIENT_DATA_PATH="/absolute/path/to/Call of Duty UO" \
+CLIENT_TEST_WORK_DIR=.workbench/runtime/gpu-profile/work \
+CLIENT_TEST_HOME_PATH=.workbench/runtime/gpu-profile/home \
+CLIENT_ARGS="+set r_gpuProfile 3" \
+meson compile -C .workbench/build/gpu-profile client-test-run
 ```
 
 The diagnostic writes `gpu_profile.log` directly below `fs_homepath`. The file
