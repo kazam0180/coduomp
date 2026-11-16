@@ -187,7 +187,6 @@ src/client/engine/system_input.c
 src/client/engine/system_localization.c
 src/client/engine/system_main.c
 src/client/engine/system_platform.c
-src/client/engine/system_process_lock.c
 src/client/engine/system_time.c
 src/client/engine/system_video_memory.c
 src/client/engine/ui/ui_client_state.c
@@ -346,10 +345,10 @@ src/qcommon/q_shared_misc.c
 src/qcommon/q_string.c
 src/qcommon/q_temp.c
 src/qcommon/vm_runtime.c
-src/scripting/generated/windows/script_parse_nodes.c
-src/scripting/generated/windows/script_yy_ast_builders.c
-src/scripting/generated/windows/script_yy_parse.c
-src/scripting/generated/windows/script_yy_tables.c
+src/scripting/generated/client/script_parse_nodes.c
+src/scripting/generated/client/script_yy_ast_builders.c
+src/scripting/generated/client/script_yy_parse.c
+src/scripting/generated/client/script_yy_tables.c
 src/scripting/script_anim_runtime.c
 src/scripting/script_array.c
 src/scripting/script_code_emit.c

@@ -7,7 +7,15 @@
 #include <stdio.h>
 
 #ifndef CASE_SENSITIVE_FS
+#if defined(__linux__)
 #define CASE_SENSITIVE_FS 1
+#else
+#define CASE_SENSITIVE_FS 0
+#endif
+#endif
+
+#if CASE_SENSITIVE_FS && defined(_WIN32)
+#error CASE_SENSITIVE_FS is not supported for Windows builds
 #endif
 
 qboolean coduomp_resolve_case_path(const char *trustedRoot,

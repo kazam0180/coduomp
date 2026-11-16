@@ -224,6 +224,23 @@ static inline void filesystem_compat_update_language_info(void)
     SEH_UpdateLanguageInfo();
 }
 
+#if defined(_WIN32)
+void Com_ReadCDKey(void);
+
+/* NOT_FROM_ORIGINAL_SOURCE: target adapter for the Windows client's original
+ * no-argument CD-key read boundary. */
+static inline void filesystem_compat_read_cd_key(void)
+{
+    Com_ReadCDKey();
+}
+
+/* NOT_FROM_ORIGINAL_SOURCE: the original Windows startup body does not append
+ * a separate fs_game key. */
+static inline void filesystem_compat_append_cd_key(const char *gameDirectory)
+{
+    (void)gameDirectory;
+}
+#else
 void Com_ReadCDKey(const char *gameDirectory);
 void Com_AppendCDKey(const char *gameDirectory);
 
@@ -239,6 +256,7 @@ static inline void filesystem_compat_append_cd_key(const char *gameDirectory)
 {
     Com_AppendCDKey(gameDirectory);
 }
+#endif
 
 /* NOT_FROM_ORIGINAL_SOURCE: the Windows streamed-read wrapper is folded into
  * FS_Read2 as an ordinary read after the reentrancy guard is cleared. */

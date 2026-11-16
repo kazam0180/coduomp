@@ -199,6 +199,8 @@ src/server/game/items.c
 src/server/game/missile.c
 src/server/game/movement.c
 src/server/game/player_die.c
+src/server/game/script_bot_path.c
+src/server/game/script_bot_path_builtins.c
 src/server/game/script_builtins.c
 src/server/game/script_cvar.c
 src/server/game/script_entity_methods.c

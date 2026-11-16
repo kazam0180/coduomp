@@ -6,7 +6,9 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#if !defined(_WIN32)
 #include <termios.h>
+#endif
 
 #include "server/standalone/bindings/coduo_engine_structs.h"
 #include "qcommon/com_command_handlers.h"
@@ -29,9 +31,17 @@
 #include "qcommon/q_shared_misc.h"
 #include "qcommon/q_string.h"
 
+#if defined(_WIN32)
+typedef jmp_buf coduo_jump_buffer_t;
+typedef struct coduo_terminal_state_s {
+    int unused;
+} coduo_terminal_state_t;
+#define CODUO_SETJMP(buffer, saveMask) setjmp(buffer)
+#else
 typedef sigjmp_buf coduo_jump_buffer_t;
 typedef struct termios coduo_terminal_state_t;
 #define CODUO_SETJMP(buffer, saveMask) sigsetjmp(buffer, saveMask)
+#endif
 
 struct stat;
 

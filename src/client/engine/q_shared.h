@@ -98,7 +98,11 @@ typedef enum msgLocErrType_e {
 extern "C" {
 #endif
 
-/* Common millisecond clock. */
+/* Common WinMM-backed millisecond clock. The original compiler inlines this
+ * clock in several unrelated subsystems, so its initialization state is not
+ * owned by the FX stat-monitor path that first established these globals. */
+/* NOT_FROM_ORIGINAL_SOURCE: validate this recovered engine boundary input and state before use. */
+enum { SYS_PROCESS_LOCK_NAME_CAPACITY = MAX_OSPATH + 2 };
 
 extern qboolean sysMillisecondsInitialized; /* original 0x0389fddc */
 extern uint32_t sysMillisecondsBase;         /* original 0x0489bc3c */
@@ -106,6 +110,8 @@ extern qboolean sysSseSupported;             /* original 0x0489d460 */
 extern double sysCpuFrequencyMHz;             /* original 0x009cf1d8 */
 extern int32_t sysPhysicalMemoryMB;           /* original 0x009cf1e0 */
 extern int32_t sysVideoMemoryMB;               /* original 0x009cf1e4 */
+extern char sysProcessLockFile[SYS_PROCESS_LOCK_NAME_CAPACITY];
+                                                /* original 0x009cf1b0 */
 extern qboolean fs_fileAccessed;               /* original 0x04935300 */
 extern int32_t fs_loadStack;                  /* original 0x0493542c */
 extern cvar_t *com_developer;                 /* original 0x04927ea4 */

@@ -16,7 +16,6 @@
 #include "system_fatal.h"
 #include "system_input.h"
 #include "system_localization.h"
-#include "system_process_lock.h"
 #include "ui/ui_module_loader.h"
 
 #include <inttypes.h>

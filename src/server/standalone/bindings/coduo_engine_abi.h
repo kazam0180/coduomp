@@ -25,7 +25,9 @@ extern "C" {
  * local buffer. Native recovered builds use a host-architecture suffix so a
  * 64-bit engine does not accidentally request the legacy i386 module name.
  */
-#if UINTPTR_MAX == UINT32_MAX
+#if defined(_WIN32)
+#define CODUO_NATIVE_DLL_FILENAME_FORMAT "uo_%s_mp_x86.dll"
+#elif UINTPTR_MAX == UINT32_MAX
 #define CODUO_NATIVE_DLL_FILENAME_FORMAT "%s.mp.uo.i386.so"
 #else
 #define CODUO_NATIVE_DLL_FILENAME_FORMAT "%s.mp.uo.x86_64.so"

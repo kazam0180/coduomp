@@ -3175,9 +3175,18 @@ void R_DrawElements(int32_t indexCount, const uint16_t *indexes)
         (renderer_primitive_mode_t)r_primitives->integer;
 
     if (primitiveMode == R_PRIMITIVES_AUTOMATIC) {
+#if defined(__APPLE__) && defined(__aarch64__)
+        /* COMPATIBILITY_PATCH (NOT_FROM_ORIGINAL_SOURCE): Apple's
+         * Metal-backed OpenGL omits EXT_compiled_vertex_array but supports
+         * core glDrawElements. Preserve the stock automatic cvar value while
+         * selecting the efficient supported submission path on this native
+         * host. Explicit primitive modes remain unchanged. */
+        primitiveMode = R_PRIMITIVES_DRAW_ELEMENTS;
+#else
         primitiveMode = qglLockArraysEXT != NULL
                             ? R_PRIMITIVES_DRAW_ELEMENTS
                             : R_PRIMITIVES_ARRAY_ELEMENTS;
+#endif
     }
 
     if (primitiveMode == R_PRIMITIVES_DRAW_ELEMENTS) {
@@ -3976,6 +3985,20 @@ void RB_SingleStageGenericARB2(shaderStage_t *stage, int32_t indexCount,
     int32_t capacity;
     uint32_t buffer;
 
+#if defined(__APPLE__) && defined(__aarch64__)
+    /* PERFORMANCE_PATCH (NOT_FROM_ORIGINAL_SOURCE): AppleMetalOpenGLRenderer
+     * synchronizes an in-flight persistent VBO at glBufferSubData, which is
+     * especially expensive for the many shader changes in text rendering.
+     * Preserve draw order and the persistent path for ordinary geometry, but
+     * send 2D surfaces through the stock interleaved packer. That packer uses
+     * fresh buffer storage below instead of updating the shared VBO. */
+    if (backEnd.projection2D != qfalse &&
+        tess.entity == &backEnd.entity2D) {
+        RB_SingleStageGenericARB(stage, indexCount, indexes);
+        return;
+    }
+#endif
+
     if (backEnd.dynamicBuffer.storage.glBuffer != 0) {
         buffer = backEnd.dynamicBuffer.storage.glBuffer;
         capacity = backEnd.dynamicBuffer.capacity;
@@ -3983,10 +4006,21 @@ void RB_SingleStageGenericARB2(shaderStage_t *stage, int32_t indexCount,
     } else {
         currentOffset = 0;
         capacity = INT32_MAX;
+#if defined(__APPLE__) && defined(__aarch64__)
+        /* PERFORMANCE_PATCH (NOT_FROM_ORIGINAL_SOURCE): BufferData replaces
+         * the transient object's storage before every upload, so reusing one
+         * name avoids creating hundreds of Apple OpenGL objects per frame
+         * without reusing storage that may still be in flight. */
+        if (backEnd.dynamicBuffer.frameSerial ==
+            tr.dynamicBufferFrameSerial) {
+            backEnd.dynamicBuffer.frameSerial = (int32_t)(
+                (uint32_t)backEnd.dynamicBuffer.frameSerial + 1u);
+        }
+#else
         /* Preserve the target x86 INC's 32-bit modulo behavior. */
         backEnd.dynamicBuffer.frameSerial = (int32_t)(
             (uint32_t)backEnd.dynamicBuffer.frameSerial + 1u);
-    }
+#endif
         buffer = (uint32_t)backEnd.dynamicBuffer.frameSerial;
     }
 
@@ -4158,8 +4192,22 @@ void RB_SingleStageGenericARB(shaderStage_t *stage, int32_t indexCount,
     vertexStride += tess.vertexComponentCount * (int32_t)sizeof(float);
     const int32_t packedBytes = tess.vertexCount * vertexStride;
 
-    const uint32_t persistentBuffer =
+    const uint32_t configuredPersistentBuffer =
         backEnd.dynamicBuffer.storage.glBuffer;
+#if defined(__APPLE__) && defined(__aarch64__)
+    /* PERFORMANCE_PATCH (NOT_FROM_ORIGINAL_SOURCE): a call redirected from
+     * RB_SingleStageGenericARB2 for a 2D surface must not fall back onto the
+     * same persistent VBO. BufferData replaces the transient buffer's storage
+     * without waiting for earlier glyph draws to finish. */
+    const qboolean useTransient2DBuffer =
+        configuredPersistentBuffer != 0 &&
+        backEnd.projection2D != qfalse &&
+        tess.entity == &backEnd.entity2D;
+    const uint32_t persistentBuffer =
+        useTransient2DBuffer != qfalse ? 0 : configuredPersistentBuffer;
+#else
+    const uint32_t persistentBuffer = configuredPersistentBuffer;
+#endif
     uint32_t activeBuffer;
     int32_t bufferOffset = 0;
 
@@ -4169,9 +4217,21 @@ void RB_SingleStageGenericARB(shaderStage_t *stage, int32_t indexCount,
         bufferOffset = RB_PickBufferOffsetARB(
             &currentOffset, packedBytes, backEnd.dynamicBuffer.capacity);
     } else {
+#if defined(__APPLE__) && defined(__aarch64__)
+        /* PERFORMANCE_PATCH (NOT_FROM_ORIGINAL_SOURCE): orphaning with
+         * BufferData gives every batch fresh storage. Reuse the transient
+         * object name so AppleMetalOpenGLRenderer need not create a new GL
+         * object for every world, model, effect, and 2D shader batch. */
+        if (backEnd.dynamicBuffer.frameSerial ==
+            tr.dynamicBufferFrameSerial) {
+            backEnd.dynamicBuffer.frameSerial = (int32_t)(
+                (uint32_t)backEnd.dynamicBuffer.frameSerial + 1u);
+        }
+#else
         /* Preserve the target x86 INC's 32-bit modulo behavior. */
         backEnd.dynamicBuffer.frameSerial = (int32_t)(
             (uint32_t)backEnd.dynamicBuffer.frameSerial + 1u);
+#endif
         activeBuffer = (uint32_t)backEnd.dynamicBuffer.frameSerial;
     }
     qglBindBufferARB(GL_ARRAY_BUFFER_ARB, activeBuffer);
@@ -4228,10 +4288,16 @@ void RB_SingleStageGenericARB(shaderStage_t *stage, int32_t indexCount,
     uint8_t *packedVertices = NULL;
     uint8_t *temporaryVertices = NULL;
     if (persistentBuffer == 0) {
-        qglBufferDataARB(GL_ARRAY_BUFFER_ARB, (intptr_t)packedBytes,
-                         NULL, GL_STREAM_DRAW_ARB);
-        packedVertices = qglMapBufferARB(GL_ARRAY_BUFFER_ARB,
-                                         GL_WRITE_ONLY_ARB);
+#if defined(__APPLE__) && defined(__aarch64__)
+        if (useTransient2DBuffer == qfalse) {
+#endif
+            qglBufferDataARB(GL_ARRAY_BUFFER_ARB, (intptr_t)packedBytes,
+                             NULL, GL_STREAM_DRAW_ARB);
+            packedVertices = qglMapBufferARB(GL_ARRAY_BUFFER_ARB,
+                                             GL_WRITE_ONLY_ARB);
+#if defined(__APPLE__) && defined(__aarch64__)
+        }
+#endif
     }
     if (packedVertices == NULL) {
         temporaryVertices =

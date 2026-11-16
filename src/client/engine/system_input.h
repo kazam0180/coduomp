@@ -3,6 +3,16 @@
 
 #include "q_shared.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+extern HWND win32MainWindow; /* original 0x0489bb88 */
+extern cvar_t *in_rawInput;
+
+void coduomp_win32_raw_input_window_created(void);
+void coduomp_win32_raw_input_window_destroyed(void);
+void coduomp_win32_raw_input_event(HRAWINPUT inputHandle);
+#endif
+
 extern cvar_t *in_mouse; /* original 0x048a5484 */
 extern cvar_t *in_midi; /* original 0x048a5480 */
 extern cvar_t *in_midiport; /* original 0x048a54a4 */

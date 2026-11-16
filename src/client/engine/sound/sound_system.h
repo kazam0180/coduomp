@@ -11,7 +11,13 @@
 extern "C" {
 #endif
 
+#if defined(_WIN32) && defined(_MSC_VER) && defined(_M_IX86)
+#define AUDIO_CALLBACK __stdcall
+#elif defined(_WIN32) && defined(__i386__)
+#define AUDIO_CALLBACK __attribute__((stdcall))
+#else
 #define AUDIO_CALLBACK
+#endif
 
 typedef void *audio_driver_t;
 typedef void *audio_window_handle_t;
