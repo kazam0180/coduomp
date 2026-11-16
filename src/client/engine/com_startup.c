@@ -19,7 +19,6 @@
 #include "system_event.h"
 #include "system_info.h"
 #include "system_platform.h"
-#include "system_process_lock.h"
 #include "platform/hardware_profile.h"
 #include "ui/ui_module_loader.h"
 

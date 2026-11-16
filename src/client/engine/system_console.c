@@ -8,7 +8,6 @@
 #include "client/console.h"
 #include "platform/crt_boundary.h"
 #include "renderer/renderer_cvars.h"
-#include "renderer/platform_display.h"
 #include "renderer/platform_gamma.h"
 #include "client/common/client_video_settings.h"
 #include "server/server.h"

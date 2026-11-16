@@ -5,7 +5,6 @@
 
 #include "platform/dynamic_library_boundary.h"
 #include "system_localization.h"
-#include "system_process_lock.h"
 
 #include <limits.h>
 #include <math.h>

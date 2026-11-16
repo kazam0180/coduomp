@@ -7,7 +7,6 @@
 #include "gl_api.h"
 #include "gl_debug.h"
 #include "platform_gamma.h"
-#include "platform_display.h"
 #include "renderer_gpu_profile.h"
 #include "wgl_debug.h"
 #include "output_gamma_compat.h"
